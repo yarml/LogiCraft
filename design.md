@@ -32,15 +32,15 @@ Function call storage that is used to pass other parameters is found in the glob
 ## Function Call Procedure
 - Caller saves any T registers it is needing in its stack frame in a new sub-field called `presaved:[]`. The layout of `presaved` is made up  for each call at compile time.
 - Caller fills call storage & T registers (checkout Arguments section) with parameters.
-- Pass control to callee.
+- Pass control to callee with macro context as call storage.
 - Callee creates its stack frame with initial values for local variables and proper metadata.
 - Callee saves any S registers it will use in its stack frame in a new sub-field called `postsaved:[]`. Tha layout of `postsaved` is made up on the fly for each function at compile time.
 
 ## Function Return Procedure
 - Callee restores any S registers it previously saved.
-- Callee removes its stack frame
-- Callee sets the return value(depends on type checkout Return Value section)
-- Return control to caller
+- Callee removes its stack frame.
+- Callee sets the return value(depends on type checkout Return Value section).
+- Return control to caller.
 - Caller moves return value to where it wants it to be.
 - Caller restores any T registers it previously saved.
 
