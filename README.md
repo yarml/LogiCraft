@@ -1,2 +1,2 @@
 # LogiCraft
-A simple language that compiles to minecraft datapacks
+A simple, strongly typed, language that compiles to minecraft datapacks
