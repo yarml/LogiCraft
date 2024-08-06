@@ -55,3 +55,16 @@ to extract it using `execute store`.
 If there are 6 or less more integer or boolean return values, they are put in T registers.
 
 Other types of return values, and subsequent integer or boolean return values are put in the call storage in their order of declaration.
+
+# Interface
+Compiler input:
+- Source Code(with file structure metadata)
+- Output destination(defaults to pwd)
+- Output type (folder/Zip)
+- Config:
+  - LC version
+  - datapack name
+  - datapack version
+
+Compiler Output:
+- Datapack folder/Zip
