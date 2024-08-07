@@ -1,4 +1,5 @@
 [datapack]
 name = "demo"
 version = "1.0"
+description = "A demo datapack"
 format = 1

@@ -1,5 +1,4 @@
 pub mod dir;
-pub mod zip;
 
 use std::{cell::RefCell, rc::Rc};
 

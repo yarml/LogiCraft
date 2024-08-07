@@ -15,6 +15,8 @@ pub struct DatapackConfig {
   pub version: String,
   /// LogiCraft Compiler version
   pub format: usize,
+  /// Datapack description
+  pub description: String,
 }
 
 pub fn getconfig(path: PathBuf) -> Config {

@@ -27,6 +27,7 @@ pub struct Args {
   pub output: PathBuf,
   #[arg(short = 't', default_value_t = OutputType::Directory)]
   pub output_type: OutputType,
+  /// Overwrite existing files/folders
   #[arg(short = 'f', default_value_t = false)]
   pub force: bool,
 }
