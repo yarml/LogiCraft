@@ -18,29 +18,19 @@ impl ToString for OutputType {
 
 #[derive(Debug, Parser)]
 #[command(version = "1.0", about = "LogiCraft Compiler", long_about= None)]
-struct Args {
+pub struct Args {
   /// Path to root directory of project
   #[arg(short = 's', default_value = "./")]
-  source: PathBuf,
-  /// Path to output directory/zip
-  #[arg(short = 'o', default_value = "./out.zip")]
-  output: PathBuf,
-  #[arg(short = 't', default_value_t = OutputType::Directory)]
-  output_type: OutputType,
-}
-
-#[derive(Debug)]
-pub struct ArgsConfig {
   pub source: PathBuf,
+  /// Path to output directory/zip
+  #[arg(short = 'o', default_value = "./out/")]
   pub output: PathBuf,
+  #[arg(short = 't', default_value_t = OutputType::Directory)]
   pub output_type: OutputType,
+  #[arg(short = 'f', default_value_t = false)]
+  pub force: bool,
 }
 
-pub fn getargs() -> ArgsConfig {
-  let args = Args::parse();
-  ArgsConfig {
-    source: args.source,
-    output: args.output,
-    output_type: args.output_type,
-  }
+pub fn getargs() -> Args {
+  Args::parse()
 }

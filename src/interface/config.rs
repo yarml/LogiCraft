@@ -4,17 +4,17 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-  datapack: DatapackConfig,
+  pub datapack: DatapackConfig,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DatapackConfig {
   /// Datapack name
-  name: String,
+  pub name: String,
   /// Datapack version
-  version: String,
+  pub version: String,
   /// LogiCraft Compiler version
-  format: String,
+  pub format: usize,
 }
 
 pub fn getconfig(path: PathBuf) -> Config {
