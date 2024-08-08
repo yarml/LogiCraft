@@ -1,5 +1,12 @@
 use std::{collections::HashMap, sync::OnceLock};
 
+use super::{
+  builtins::{Builtin, BuiltinFn, BuiltinType},
+  identifier::{Identifier, Name},
+  keywords::Keyword,
+  operators::{AssignOp, BinOp, Op, UnOp},
+};
+
 peg::parser! {
   pub grammar lexer() for str {
     rule comment() = quiet! {
@@ -45,6 +52,15 @@ peg::parser! {
     rule semicolon() -> Token = quiet! {
       ";" { Token::SemiColon }
     } / expected!("Semi Colon")
+    rule dot() -> Token = quiet! {
+      "." { Token::Dot }
+    } / expected!("Dot")
+    rule comma() -> Token = quiet! {
+      "," { Token::Comma }
+    } / expected!("Comma")
+    rule colon() -> Token = quiet! {
+      ":" { Token::Colon }
+    } / expected!("Colon")
 
     rule digit_bin() -> u64 = quiet! {
       d:$(['0'..='1']) { d.parse().unwrap() }
@@ -155,52 +171,47 @@ peg::parser! {
     } / expected!("Identifier")
 
     rule unop_not() -> Token = quiet! {
-      "!" { Token::OpNot }
+      "!" { Token::Op(Op::Un(UnOp::Not)) }
     } / expected!("Operator Not")
-    rule unop_neg() -> Token = quiet! {
-      "-" { Token::OpSub }
-    } / expected!("Operator Neg")
-    rule unop_identity() -> Token = quiet! {
-      "+" { Token::OpAdd }
-    } / expected!("Operator Identity")
-    rule unop() -> Token = quiet! {
-      unop_not() / unop_neg() / unop_identity()
-    } / expected!("Unary Operator")
 
-    rule binop_add() -> Token = quiet! {
-      "+" { Token::OpAdd }
+    rule op_add() -> Token = quiet! {
+      "+" { Token::Op(Op::RawAdd) }
     } / expected!("Operator Add")
-    rule binop_sub() -> Token = quiet! {
-      "-" { Token::OpSub }
+    rule op_sub() -> Token = quiet! {
+      "-" { Token::Op(Op::RawSub) }
     } / expected!("Operator Sub")
     rule binop_mul() -> Token = quiet! {
-      "*" { Token::OpMul }
+      "*" { Token::Op(Op::Bin(BinOp::Mul)) }
     } / expected!("Operator Mul")
     rule binop_div() -> Token = quiet! {
-      "/" { Token::OpDiv }
+      "/" { Token::Op(Op::Bin(BinOp::Div)) }
     } / expected!("Operator Div")
+    rule binop_mod() -> Token = quiet! {
+      "%" { Token::Op(Op::Bin(BinOp::Mod)) }
+    } / expected!("Operator Mod")
     rule binop_equals() -> Token = quiet! {
-      "==" { Token:: OpEquals }
+      "==" { Token::Op(Op::Bin(BinOp::Equal)) }
     } / expected!("Operator Equals")
     rule binop_not_equals() -> Token = quiet! {
-      "!=" { Token::OpNotEquals }
+      "!=" { Token::Op(Op::Bin(BinOp::NotEqual)) }
     } / expected!("Operator Not Equals")
     rule binop_greater() -> Token = quiet! {
-      ">" { Token::OpGreater }
+      ">" { Token::Op(Op::Bin(BinOp::Greater)) }
     } / expected!("Operator Greater")
     rule binop_lesser() -> Token = quiet! {
-      "<" { Token::OpLesser }
+      "<" { Token::Op(Op::Bin(BinOp::Less)) }
     } / expected!("Operator Lesser")
     rule binop_greater_equals() -> Token = quiet! {
-      ">=" { Token::OpGreateOrEqual }
+      ">=" { Token::Op(Op::Bin(BinOp::GreaterOrEqual)) }
     } / expected!("Operator Greater or Equals")
     rule binop_lesser_equals() -> Token = quiet! {
-      "<=" { Token::OpLesserOrEqual }
+      "<=" { Token::Op(Op::Bin(BinOp::LessOrEqual)) }
     } / expected!("Operator Lesser or Equals")
 
-    rule binop() -> Token = quiet! {
-      binop_add() /
-      binop_sub() /
+    rule op() -> Token = quiet! {
+      unop_not() /
+      op_add() /
+      op_sub() /
       binop_mul() /
       binop_div() /
       binop_equals() /
@@ -212,20 +223,23 @@ peg::parser! {
     } / expected!("Binary Operator")
 
     rule assignop_identity() -> Token = quiet! {
-      "=" { Token:: OpAssign }
+      "=" { Token::AssignOp(AssignOp::Identity) }
     } / expected!("Operator Assign")
     rule assignop_add() -> Token = quiet! {
-      "+=" { Token::OpAddAssign }
+      "+=" { Token::AssignOp(AssignOp::Add) }
     } / expected!("Operator Add Assign")
     rule assignop_sub() -> Token = quiet! {
-      "-=" { Token::OpSubAssign }
+      "-=" { Token::AssignOp(AssignOp::Sub) }
     } / expected!("Operator Sub Assign")
     rule assignop_mul() -> Token = quiet! {
-      "*=" { Token::OpMulAssign }
+      "*=" { Token::AssignOp(AssignOp::Mul) }
     } / expected!("Operator Mul Assign")
     rule assignop_div() -> Token = quiet! {
-      "/=" { Token::OpDivAssign }
+      "/=" { Token::AssignOp(AssignOp::Div) }
     } / expected!("Operator Div Assign")
+    rule assignop_mod() -> Token = quiet! {
+      "%=" { Token::AssignOp(AssignOp::Mod) }
+    } / expected!("Operator Mod Assign")
 
     rule assignop() -> Token = quiet! {
       assignop_identity() /
@@ -241,11 +255,14 @@ peg::parser! {
       literal_character() /
       literal_string() /
       identifier() /
-      binop() /
+      op() /
       assignop() /
       brackets() /
       semicolon() /
-      separator()
+      separator() /
+      dot() /
+      comma() /
+      colon()
     } / expected!("Any Token")
     pub rule lex() -> Vec<Token> = any()*
   }
@@ -264,7 +281,7 @@ fn parse_literal_float(literal: &str) -> Result<Token, &'static str> {
 }
 fn parse_identifier(
   root: bool,
-  parts: Vec<String>,
+  parts: Vec<Name>,
 ) -> Result<Token, &'static str> {
   let kw = parts.iter().find_map(|part| {
     let kws = keywords();
@@ -281,7 +298,7 @@ fn parse_identifier(
       Ok(token)
     }
   } else {
-    Ok(Token::Identifier(root, parts))
+    Ok(Token::Identifier(Identifier { root, parts }))
   }
 }
 
@@ -293,12 +310,19 @@ fn keywords() -> &'static HashMap<&'static str, Token> {
     map.insert("true", Token::LiteralBoolean(true));
     map.insert("false", Token::LiteralBoolean(false));
 
-    map.insert("let", Token::KeywordLet);
-    map.insert("fn", Token::KeywordFn);
-    map.insert("if", Token::KeywordIf);
-    map.insert("else", Token::KeywordElse);
+    map.insert("mod", Token::Keyword(Keyword::Mod));
+    map.insert("fn", Token::Keyword(Keyword::Fn));
+    map.insert("let", Token::Keyword(Keyword::Let));
+    map.insert("if", Token::Keyword(Keyword::If));
+    map.insert("else", Token::Keyword(Keyword::Else));
 
-    map.insert("println", Token::BuiltinPrintLn);
+    map.insert("bool", Token::Builtin(Builtin::Type(BuiltinType::Bool)));
+    map.insert("int", Token::Builtin(Builtin::Type(BuiltinType::Int)));
+    map.insert("float", Token::Builtin(Builtin::Type(BuiltinType::Float)));
+    map.insert("char", Token::Builtin(Builtin::Type(BuiltinType::Char)));
+    map.insert("string", Token::Builtin(Builtin::Type(BuiltinType::String)));
+
+    map.insert("println", Token::Builtin(Builtin::Fn(BuiltinFn::PrintLn)));
 
     map
   })
@@ -314,7 +338,7 @@ pub enum Token {
   LiteralCharacter(char),
   LiteralString(String),
 
-  Identifier(bool, Vec<String>),
+  Identifier(Identifier),
 
   ParenOpen,
   ParenClose,
@@ -322,33 +346,15 @@ pub enum Token {
   BraceClose,
   BracketOpen,
   BracketClose,
+
   SemiColon,
+  Dot,
+  Comma,
+  Colon,
 
-  OpNot,
+  Op(Op),
+  AssignOp(AssignOp),
 
-  OpAdd,
-  OpSub,
-  OpMul,
-  OpDiv,
-
-  OpAssign,
-
-  OpAddAssign,
-  OpSubAssign,
-  OpMulAssign,
-  OpDivAssign,
-
-  OpEquals,
-  OpNotEquals,
-  OpGreater,
-  OpLesser,
-  OpGreateOrEqual,
-  OpLesserOrEqual,
-
-  KeywordLet,
-  KeywordFn,
-  KeywordIf,
-  KeywordElse,
-
-  BuiltinPrintLn,
+  Keyword(Keyword),
+  Builtin(Builtin),
 }
