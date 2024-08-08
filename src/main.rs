@@ -1,16 +1,19 @@
+mod control;
 mod format;
 mod grammar;
-mod control;
 mod output;
+mod pipeline;
+mod semantics;
 
-use std::fs;
+use control::cli::{getargs, OutputType};
+use control::config::getconfig;
 use format::pack::PackMeta;
 use grammar::lexer::lexer;
 use grammar::parser::parser;
-use control::cli::{getargs, OutputType};
-use control::config::getconfig;
 use output::dir::DirOutputFilesystem;
 use output::OutputFilesystem;
+use pipeline::Pipeline;
+use std::fs;
 
 fn main() {
   let args = getargs();
@@ -21,16 +24,9 @@ fn main() {
   };
 
   // Lex main.lc
-  let main_path = args.source.join("src/main.lc");
-  let main_file =
-    fs::read_to_string(&main_path).expect("Could not read main.lc");
-  let tokens = lexer::lex(&main_file).expect("Could not lex main.lc");
-  println!("Tokens: {tokens:?}");
-  let token_ref: Vec<_> = tokens.iter().map(|t| t).collect();
-  let fn_decl =
-    parser::decl(&token_ref[..]).expect("Could not parse main.lc");
-
-  println!("Declarations: {fn_decl:?}");
+  let src_path = args.source.join("src");
+  let pipeline = Pipeline::new(&src_path);
+  pipeline.load();
 
   let output_name = format!(
     "{name}-{version}-{format}{ext}",
