@@ -3,7 +3,10 @@ mod grammar;
 mod interface;
 mod output;
 
-use format::PackMeta;
+use std::fs;
+
+use format::pack::PackMeta;
+use grammar::lexer::lexer;
 use interface::cli::{getargs, OutputType};
 use interface::config::getconfig;
 use output::dir::DirOutputFilesystem;
@@ -16,6 +19,13 @@ fn main() {
     OutputType::Directory => "",
     OutputType::Zip => ".zip",
   };
+
+  // Lex main.lc
+  let main_path = args.source.join("src/main.lc");
+  let main_file =
+    fs::read_to_string(&main_path).expect("Could not read main.lc");
+  let tokens = lexer::lex(&main_file).expect("Could not lex main.lc");
+  println!("{tokens:?}");
 
   let output_name = format!(
     "{name}-{version}-{format}{ext}",
