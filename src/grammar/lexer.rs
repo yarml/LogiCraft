@@ -321,6 +321,8 @@ fn keywords() -> &'static HashMap<&'static str, Token> {
     map.insert("else", Token::Keyword(Keyword::Else));
     map.insert("return", Token::Keyword(Keyword::Ret));
 
+    map.insert("struct", Token::Keyword(Keyword::Struct));
+
     map.insert("void", Token::Builtin(Builtin::Type(BuiltinType::Void)));
     map.insert("bool", Token::Builtin(Builtin::Type(BuiltinType::Bool)));
     map.insert("int", Token::Builtin(Builtin::Type(BuiltinType::Int)));

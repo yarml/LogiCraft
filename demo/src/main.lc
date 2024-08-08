@@ -1,3 +1,9 @@
+struct Test {
+  a: bool,
+  b: int,
+  c: Hello,
+}
+
 fn test() {
   println("Hello, World!");
 }

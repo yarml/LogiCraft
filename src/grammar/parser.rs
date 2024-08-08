@@ -106,15 +106,15 @@ parser! {
     rule var_decl() -> Node =
       [Token::Keyword(Keyword::Let)] [Token::Separator]
       name:name() [Token::Separator]?
-      [Token::Colon] [Token::Separator]?
-      tn:(
-        [Token::Identifier(t)] {
-          TypedName(name.clone(), Type::Declared(t.clone()))
-        } /
-        [Token::Builtin(Builtin::Type(t))] {
-          TypedName(name.clone(), Type::Builtin(*t))
-        }
-      ) [Token::Separator]?
+      tn:([Token::Colon] [Token::Separator]?
+        tn:(
+          [Token::Identifier(t)] {
+            TypedName(name.clone(), Type::Declared(t.clone()))
+          } /
+          [Token::Builtin(Builtin::Type(t))] {
+            TypedName(name.clone(), Type::Builtin(*t))
+          }
+        )? { tn }) [Token::Separator]?
       [Token::AssignOp(AssignOp::Identity)] [Token::Separator]?
       e:expression() {
         Node::VarDecl(tn, e)
@@ -173,11 +173,21 @@ parser! {
         Node::ModDecl(name)
       };
 
+    rule global_struct_decl() -> Node =
+      [Token::Keyword(Keyword::Struct)] [Token::Separator]
+      name:name() [Token::Separator]?
+      [Token::BraceOpen] [Token::Separator]?
+      fields:params_decl() [Token::Separator]?
+      [Token::BraceClose] {
+        Node::StructDecl(name, fields)
+      };
+
     pub rule decl() -> Vec<Node> =
       (
         global_fn_decl() /
         global_var_decl() /
-        global_mod_decl()
+        global_mod_decl() /
+        global_struct_decl()
       ) ** ([Token::Separator]?)
   }
 }
@@ -201,8 +211,8 @@ pub enum ExpressionNode {
 pub enum Node {
   Expression(ExpressionNode),
   Assignment(Identifier, AssignOp, ExpressionNode),
-  VarDecl(TypedName, ExpressionNode),
+  VarDecl(Option<TypedName>, ExpressionNode),
   FnDecl(Name, Vec<TypedName>, Type, Vec<Node>),
   ModDecl(Name),
-  TypeDecl(Name, Vec<TypedName>),
+  StructDecl(Name, Vec<TypedName>),
 }

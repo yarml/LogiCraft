@@ -1,15 +1,14 @@
 mod format;
 mod grammar;
-mod interface;
+mod control;
 mod output;
 
 use std::fs;
-
 use format::pack::PackMeta;
 use grammar::lexer::lexer;
 use grammar::parser::parser;
-use interface::cli::{getargs, OutputType};
-use interface::config::getconfig;
+use control::cli::{getargs, OutputType};
+use control::config::getconfig;
 use output::dir::DirOutputFilesystem;
 use output::OutputFilesystem;
 
