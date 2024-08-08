@@ -1,3 +1,5 @@
 fn test() {
   println("Hello, World!");
 }
+
+let a: string = "dede";

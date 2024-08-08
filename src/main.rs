@@ -29,9 +29,9 @@ fn main() {
   println!("Tokens: {tokens:?}");
   let token_ref: Vec<_> = tokens.iter().map(|t| t).collect();
   let fn_decl =
-    parser::fn_decl(&token_ref[..]).expect("Could not parse main.lc");
+    parser::decl(&token_ref[..]).expect("Could not parse main.lc");
 
-  println!("Function: {fn_decl:?}");
+  println!("Declarations: {fn_decl:?}");
 
   let output_name = format!(
     "{name}-{version}-{format}{ext}",

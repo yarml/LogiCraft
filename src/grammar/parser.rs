@@ -3,21 +3,16 @@ use super::{
   identifier::{Identifier, Name, Type, TypedName},
   keywords::Keyword,
   lexer::Token,
-  operators::{AssignOp, BinOp, UnOp},
+  operators::{AssignOp, BinOp, Precedence, UnOp},
 };
 use peg::parser;
 
 parser! {
   pub grammar parser<'a>() for [&'a Token] {
     rule name() -> Name = quiet! {
-      [Token::Identifier(name)] {?
-        if name.is_singular() {
-          Ok(name.parts[0].clone())
-        } else {
-           Err("Expected a singular identifier, found a complex identifier")
-          }
-        }
-    } / expected!("Name");
+      [Token::Identifier(name) if name.is_singular()] {
+        name.parts[0].clone()
+    }} / expected!("Name");
 
     rule param_decl() -> TypedName = quiet! {
       name:name() [Token::Separator]? [Token::Colon] [Token::Separator]?
@@ -45,26 +40,90 @@ parser! {
       ) param_sep()? { p }
     } / expected!("Arguments");
 
-    rule expression() -> ExpressionNode = quiet! {
+    rule optsep() = [Token::Separator]?
+
+    rule expression_atom() -> ExpressionNode =
+      [Token::LiteralInteger(i)] { ExpressionNode::AtomInteger(*i as isize) } /
+      [Token::LiteralFloat(f)] { ExpressionNode::AtomFloat(*f) } /
+      [Token::LiteralBoolean(b)] { ExpressionNode::AtomBoolean(*b) } /
+      [Token::LiteralString(s)] { ExpressionNode::AtomString(s.clone()) } /
+      [Token::Identifier(name)] { ExpressionNode::AtomIdentifier(name.clone()) } /
       (
-        [Token::Builtin(Builtin::Fn(b))] [Token::Separator]?
-        [Token::ParenOpen] [Token::Separator]?
-        args:params() [Token::Separator]?
-        [Token::ParenClose] [Token::Separator]?
+        [Token::ParenOpen] optsep()
+        e:expression() optsep()
+        [Token::ParenClose] { e }
+      ) /
+      (
+        [Token::Builtin(Builtin::Fn(b))] optsep()
+        [Token::ParenOpen] optsep()
+        args:params() optsep()
+        [Token::ParenClose] optsep()
         { ExpressionNode::BuiltinCall(*b, args) }
       ) /
-      [Token::LiteralString(s)] { ExpressionNode::AtomString(s.to_string()) }
-    } / expected!("Expression");
+      (
+        [Token::Identifier(name)] optsep()
+        [Token::ParenOpen] optsep()
+        args:params() optsep()
+        [Token::ParenClose] optsep() {
+          ExpressionNode::FunctionCall(name.clone(), args)
+        }
+      );
+
+    rule expression_unop() -> ExpressionNode =
+      [Token::Op(op) if op.can_be_unary()] e:expression_atom() {
+        ExpressionNode::UnOp(op.as_unary(), Box::new(e))
+      } / expression_atom();
+
+    rule expression_factor() -> ExpressionNode =
+      e1:expression_unop() optsep()
+      [Token::Op(op) if op.binary_with(Precedence::High)] optsep()
+      e2:expression_unop() {
+        ExpressionNode::BinOp(Box::new(e1), op.as_binary(), Box::new(e2))
+      } / expression_unop();
+  
+    rule expression_term() -> ExpressionNode =
+      e1:expression_factor() optsep()
+      [Token::Op(op) if op.binary_with(Precedence::Low)] optsep()
+      e2:expression_factor() {
+        ExpressionNode::BinOp(Box::new(e1), op.as_binary(), Box::new(e2))
+      } / expression_factor();
+    
+    rule expression_comp() -> ExpressionNode =
+      e1:expression_term() optsep()
+      [Token::Op(op) if op.binary_with(Precedence::Lowest)] optsep()
+      e2:expression_term() {
+        ExpressionNode::BinOp(Box::new(e1), op.as_binary(), Box::new(e2))
+      } / expression_term();
+
+    rule expression() -> ExpressionNode = expression_comp();
+
+    rule assignment() -> Node =
+    [Token::Identifier(name)] [Token::Separator]?
+    [Token::AssignOp(op)] [Token::Separator]?
+    e:expression() {
+      Node::Assignment(name.clone(), *op, e)
+    };
+    rule var_decl() -> Node =
+      [Token::Keyword(Keyword::Let)] [Token::Separator]
+      name:name() [Token::Separator]?
+      [Token::Colon] [Token::Separator]?
+      tn:(
+        [Token::Identifier(t)] {
+          TypedName(name.clone(), Type::Declared(t.clone()))
+        } /
+        [Token::Builtin(Builtin::Type(t))] {
+          TypedName(name.clone(), Type::Builtin(*t))
+        }
+      ) [Token::Separator]?
+      [Token::AssignOp(AssignOp::Identity)] [Token::Separator]?
+      e:expression() {
+        Node::VarDecl(tn, e)
+      };
 
     rule statement() -> Node = quiet! {
       e:expression() { Node::Expression(e) } /
-      (
-        [Token::Identifier(name)] [Token::Separator]?
-        [Token::AssignOp(op)] [Token::Separator]?
-        e:expression() {
-          Node::Assignment(name.clone(), *op, e)
-        }
-      )
+      assignment() /
+      var_decl()
     } / expected!("Statement");
 
     rule statement_sep() = quiet! {
@@ -77,7 +136,7 @@ parser! {
       ) statement_sep()? { s }
     } / expected!("Statements");
 
-    pub rule fn_decl() -> Node =
+    rule global_fn_decl() -> Node =
       [Token::Keyword(Keyword::Fn)] [Token::Separator]
       name:name() [Token::Separator]?
       [Token::ParenOpen] [Token::Separator]?
@@ -92,8 +151,7 @@ parser! {
       )?
       [Token::BraceOpen] [Token::Separator]?
       stmts:statements() [Token::Separator]?
-      [Token::BraceClose]
-      {
+      [Token::BraceClose] {
         Node::FnDecl(
           name,
           params,
@@ -104,8 +162,23 @@ parser! {
           ),
           stmts
         )
-      }
-    ;
+      };
+
+    rule global_var_decl() -> Node =
+      d:var_decl() statement_sep() { d };
+
+    rule global_mod_decl() -> Node =
+      [Token::Keyword(Keyword::Mod)] [Token::Separator]
+      name:name() statement_sep() {
+        Node::ModDecl(name)
+      };
+
+    pub rule decl() -> Vec<Node> =
+      (
+        global_fn_decl() /
+        global_var_decl() /
+        global_mod_decl()
+      ) ** ([Token::Separator]?)
   }
 }
 
@@ -130,5 +203,6 @@ pub enum Node {
   Assignment(Identifier, AssignOp, ExpressionNode),
   VarDecl(TypedName, ExpressionNode),
   FnDecl(Name, Vec<TypedName>, Type, Vec<Node>),
+  ModDecl(Name),
   TypeDecl(Name, Vec<TypedName>),
 }
