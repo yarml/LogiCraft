@@ -5,12 +5,11 @@ use std::{
 };
 
 use crate::{
-  format,
   grammar::{
     lexer::lexer,
     parser::{parser, Node},
   },
-  semantics::module::ModulePath,
+  semantics::{ast_optimizer::ast_optimize, module::ModulePath},
 };
 
 #[derive(Debug, Clone)]
@@ -29,13 +28,37 @@ impl Pipeline {
     Pipeline { root: root.clone() }
   }
 
-  pub fn load(&self) {
+  fn load(&self) -> HashMap<ModulePath, Vec<Node>> {
     let mut context = LoadContext {
       schedule: HashSet::new(),
       loaded: HashMap::new(),
     };
 
     context.load(&self.root, ModulePath::main());
+
+    context.loaded
+  }
+
+  fn optimize(nodes: &mut Vec<Node>) {
+    ast_optimize(nodes);
+  }
+
+  pub fn run(&self) {
+    let mut modules = self.load();
+
+    println!("Optimizing modules");
+
+    // Stage 1 Optimization
+    for nodes in modules.values_mut() {
+      Pipeline::optimize(nodes);
+    }
+
+    for (module, nodes) in modules.iter() {
+      println!("Optimized Module: {}", module.to_string());
+      for node in nodes {
+        println!("{:?}", node);
+      }
+    }
   }
 }
 
@@ -73,7 +96,6 @@ impl LoadContext {
         .expect(&format!("Could not read module: {:?}", path));
       let tokens = lexer::lex(&source)
         .expect(&format!("Could not lex module: {:?}", path));
-      println!("Tokens: {tokens:?}");
       let token_ref: Vec<_> = tokens.iter().map(|t| t).collect();
       let nodes = parser::decl(&token_ref[..])
         .expect(&format!("Could not parse module: {:?}", path));

@@ -8,12 +8,9 @@ mod semantics;
 use control::cli::{getargs, OutputType};
 use control::config::getconfig;
 use format::pack::PackMeta;
-use grammar::lexer::lexer;
-use grammar::parser::parser;
 use output::dir::DirOutputFilesystem;
 use output::OutputFilesystem;
 use pipeline::Pipeline;
-use std::fs;
 
 fn main() {
   let args = getargs();
@@ -26,7 +23,7 @@ fn main() {
   // Lex main.lc
   let src_path = args.source.join("src");
   let pipeline = Pipeline::new(&src_path);
-  pipeline.load();
+  pipeline.run();
 
   let output_name = format!(
     "{name}-{version}-{format}{ext}",

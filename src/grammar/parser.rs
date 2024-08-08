@@ -205,3 +205,108 @@ pub enum Node {
   ModDecl(Name),
   StructDecl(Name, Vec<TypedName>),
 }
+
+impl ExpressionNode {
+  pub fn can_reduce(&self) -> bool {
+    match self {
+      ExpressionNode::AtomInteger(_) => false,
+      ExpressionNode::AtomString(_) => false,
+      ExpressionNode::AtomBoolean(_) => false,
+      ExpressionNode::AtomFloat(_) => false,
+      ExpressionNode::AtomIdentifier(_) => false,
+      ExpressionNode::BuiltinCall(_, _) => false,
+      ExpressionNode::FunctionCall(_, _) => false,
+      ExpressionNode::UnOp(_, operand) => operand.is_known(),
+      ExpressionNode::BinOp(left, _, right) => {
+        left.is_known() && right.is_known()
+      }
+    }
+  }
+
+  pub fn is_known(&self) -> bool {
+    match self {
+      ExpressionNode::AtomInteger(_) => true,
+      ExpressionNode::AtomString(_) => true,
+      ExpressionNode::AtomBoolean(_) => true,
+      ExpressionNode::AtomFloat(_) => true,
+      ExpressionNode::AtomIdentifier(_) => false,
+      ExpressionNode::BuiltinCall(_, _) => false,
+      ExpressionNode::FunctionCall(_, _) => false,
+      ExpressionNode::UnOp(_, expr) => expr.is_known(),
+      ExpressionNode::BinOp(left, _, right) => {
+        left.is_known() && right.is_known()
+      }
+    }
+  }
+
+  pub fn reduce(&mut self) {
+    match self {
+      ExpressionNode::UnOp(op, expr) => {
+        expr.reduce();
+        match (op, *expr.clone()) {
+          (UnOp::Negate, ExpressionNode::AtomInteger(i)) => {
+            *self = ExpressionNode::AtomInteger(-i);
+          }
+          (UnOp::Negate, ExpressionNode::AtomFloat(f)) => {
+            *self = ExpressionNode::AtomFloat(-f);
+          }
+          (UnOp::Not, ExpressionNode::AtomBoolean(b)) => {
+            *self = ExpressionNode::AtomBoolean(!b);
+          }
+          (UnOp::Identity, _) => {
+            *self = *expr.clone();
+          }
+          _ => {}
+        }
+      }
+      ExpressionNode::BinOp(left, op, right) => {
+        left.reduce();
+        right.reduce();
+        if left.is_known() && right.is_known() {
+          match (*left.clone(), *right.clone()) {
+            (
+              ExpressionNode::AtomInteger(l),
+              ExpressionNode::AtomInteger(r),
+            ) if op.can_execute() => {
+              *self = ExpressionNode::AtomInteger(op.execute(l, r));
+            }
+            (ExpressionNode::AtomFloat(l), ExpressionNode::AtomFloat(r))
+              if op.can_execute() =>
+            {
+              *self = ExpressionNode::AtomFloat(op.execute(l, r));
+            }
+            (ExpressionNode::AtomInteger(l), ExpressionNode::AtomFloat(r))
+              if op.can_execute() =>
+            {
+              *self = ExpressionNode::AtomFloat(op.execute(l as f64, r));
+            }
+            (ExpressionNode::AtomFloat(l), ExpressionNode::AtomInteger(r))
+              if op.can_execute() =>
+            {
+              *self = ExpressionNode::AtomFloat(op.execute(l, r as f64));
+            }
+            (
+              ExpressionNode::AtomBoolean(l),
+              ExpressionNode::AtomBoolean(r),
+            ) if op.applies_to_bool() => {
+              *self = ExpressionNode::AtomBoolean(op.execute_comp(l, r));
+            }
+            (
+              ExpressionNode::AtomInteger(l),
+              ExpressionNode::AtomInteger(r),
+            ) if op.is_comp() => {
+              *self = ExpressionNode::AtomBoolean(op.execute_comp(l, r));
+            }
+            (ExpressionNode::AtomFloat(l), ExpressionNode::AtomFloat(r))
+              if op.is_comp() =>
+            {
+              *self = ExpressionNode::AtomBoolean(op.execute_comp(l, r));
+            }
+            _ => {}
+          }
+        }
+      }
+      _ => {}
+    }
+  }
+}

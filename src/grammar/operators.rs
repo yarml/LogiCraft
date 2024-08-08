@@ -1,3 +1,5 @@
+use std::ops::{Add, Div, Mul, Rem, Sub};
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnOp {
   Not,
@@ -102,6 +104,67 @@ impl BinOp {
       BinOp::LessOrEqual => Precedence::Lowest,
       BinOp::Greater => Precedence::Lowest,
       BinOp::GreaterOrEqual => Precedence::Lowest,
+    }
+  }
+
+  pub fn can_execute(&self) -> bool {
+    match self {
+      BinOp::Add => true,
+      BinOp::Sub => true,
+      BinOp::Mul => true,
+      BinOp::Div => true,
+      BinOp::Mod => true,
+      _ => false,
+    }
+  }
+  pub fn is_comp(&self) -> bool {
+    match self {
+      BinOp::Equal => true,
+      BinOp::NotEqual => true,
+      BinOp::Less => true,
+      BinOp::LessOrEqual => true,
+      BinOp::Greater => true,
+      BinOp::GreaterOrEqual => true,
+      _ => false,
+    }
+  }
+
+  pub fn applies_to_bool(&self) -> bool {
+    match self {
+      BinOp::Equal | BinOp::NotEqual => true,
+      _ => false,
+    }
+  }
+
+  pub fn execute<T>(&self, left: T, right: T) -> T
+  where
+    T: Add<Output = T>
+      + Sub<Output = T>
+      + Mul<Output = T>
+      + Div<Output = T>
+      + Rem<Output = T>,
+  {
+    match self {
+      BinOp::Add => left + right,
+      BinOp::Sub => left - right,
+      BinOp::Mul => left * right,
+      BinOp::Div => left / right,
+      BinOp::Mod => left % right,
+      _ => panic!("Cannot execute comparison operator"),
+    }
+  }
+  pub fn execute_comp<T>(&self, left: T, right: T) -> bool
+  where
+    T: PartialEq + PartialOrd,
+  {
+    match self {
+      BinOp::Equal => left == right,
+      BinOp::NotEqual => left != right,
+      BinOp::Less => left < right,
+      BinOp::LessOrEqual => left <= right,
+      BinOp::Greater => left > right,
+      BinOp::GreaterOrEqual => left >= right,
+      _ => panic!("Cannot execute arithmetic operator"),
     }
   }
 }

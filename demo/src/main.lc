@@ -1,5 +1,4 @@
-mod utils;
-
 fn test() {
-  println(4*2 + 2 * 3);
+  4*2 + 2 * 3;
+  println(1 + 1);
 }
