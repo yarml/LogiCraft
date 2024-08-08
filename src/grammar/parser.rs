@@ -42,60 +42,49 @@ parser! {
 
     rule optsep() = [Token::Separator]?
 
-    rule expression_atom() -> ExpressionNode =
-      [Token::LiteralInteger(i)] { ExpressionNode::AtomInteger(*i as isize) } /
-      [Token::LiteralFloat(f)] { ExpressionNode::AtomFloat(*f) } /
-      [Token::LiteralBoolean(b)] { ExpressionNode::AtomBoolean(*b) } /
-      [Token::LiteralString(s)] { ExpressionNode::AtomString(s.clone()) } /
-      [Token::Identifier(name)] { ExpressionNode::AtomIdentifier(name.clone()) } /
-      (
+    rule expression() -> ExpressionNode = precedence! {
+      x:(@) optsep() [Token::Op(op) if op.binary_with(Precedence::Lowest)] optsep() y:@ {
+        ExpressionNode::BinOp(Box::new(x), op.as_binary(), Box::new(y))
+      }
+      --
+      x:(@) optsep() [Token::Op(op) if op.binary_with(Precedence::Low)] optsep() y:@ {
+        ExpressionNode::BinOp(Box::new(x), op.as_binary(), Box::new(y))
+      }
+      --
+      x:(@) optsep() [Token::Op(op) if op.binary_with(Precedence::High)] optsep() y:@ {
+        ExpressionNode::BinOp(Box::new(x), op.as_binary(), Box::new(y))
+      }
+      --
+      [Token::Op(op) if op.can_be_unary()] optsep() x:@ {
+        ExpressionNode::UnOp(op.as_unary(), Box::new(x))
+      }
+      --
+      [Token::LiteralInteger(i)] { ExpressionNode::AtomInteger(*i as isize) }
+      [Token::LiteralFloat(f)] { ExpressionNode::AtomFloat(*f) }
+      [Token::LiteralBoolean(b)] { ExpressionNode::AtomBoolean(*b) }
+      [Token::LiteralString(s)] { ExpressionNode::AtomString(s.clone()) }
+      [Token::Identifier(name)] { ExpressionNode::AtomIdentifier(name.clone()) }
+      e:(
         [Token::ParenOpen] optsep()
         e:expression() optsep()
         [Token::ParenClose] { e }
-      ) /
-      (
+      ) { e }
+      en:(
         [Token::Builtin(Builtin::Fn(b))] optsep()
         [Token::ParenOpen] optsep()
         args:params() optsep()
-        [Token::ParenClose] optsep()
-        { ExpressionNode::BuiltinCall(*b, args) }
-      ) /
-      (
+        [Token::ParenClose] optsep() { ExpressionNode::BuiltinCall(*b, args) }
+      ) { en }
+      en:(
         [Token::Identifier(name)] optsep()
         [Token::ParenOpen] optsep()
         args:params() optsep()
         [Token::ParenClose] optsep() {
           ExpressionNode::FunctionCall(name.clone(), args)
         }
-      );
-
-    rule expression_unop() -> ExpressionNode =
-      [Token::Op(op) if op.can_be_unary()] e:expression_atom() {
-        ExpressionNode::UnOp(op.as_unary(), Box::new(e))
-      } / expression_atom();
-
-    rule expression_factor() -> ExpressionNode =
-      e1:expression_unop() optsep()
-      [Token::Op(op) if op.binary_with(Precedence::High)] optsep()
-      e2:expression_unop() {
-        ExpressionNode::BinOp(Box::new(e1), op.as_binary(), Box::new(e2))
-      } / expression_unop();
-  
-    rule expression_term() -> ExpressionNode =
-      e1:expression_factor() optsep()
-      [Token::Op(op) if op.binary_with(Precedence::Low)] optsep()
-      e2:expression_factor() {
-        ExpressionNode::BinOp(Box::new(e1), op.as_binary(), Box::new(e2))
-      } / expression_factor();
-    
-    rule expression_comp() -> ExpressionNode =
-      e1:expression_term() optsep()
-      [Token::Op(op) if op.binary_with(Precedence::Lowest)] optsep()
-      e2:expression_term() {
-        ExpressionNode::BinOp(Box::new(e1), op.as_binary(), Box::new(e2))
-      } / expression_term();
-
-    rule expression() -> ExpressionNode = expression_comp();
+      ) { en }
+      [Token::ParenOpen] optsep() x:expression()  optsep() [Token::ParenClose] { x }
+    };
 
     rule assignment() -> Node =
     [Token::Identifier(name)] [Token::Separator]?
