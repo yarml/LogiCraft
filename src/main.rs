@@ -7,6 +7,7 @@ use std::fs;
 
 use format::pack::PackMeta;
 use grammar::lexer::lexer;
+use grammar::parser::parser;
 use interface::cli::{getargs, OutputType};
 use interface::config::getconfig;
 use output::dir::DirOutputFilesystem;
@@ -25,7 +26,12 @@ fn main() {
   let main_file =
     fs::read_to_string(&main_path).expect("Could not read main.lc");
   let tokens = lexer::lex(&main_file).expect("Could not lex main.lc");
-  println!("{tokens:?}");
+  println!("Tokens: {tokens:?}");
+  let token_ref: Vec<_> = tokens.iter().map(|t| t).collect();
+  let fn_decl =
+    parser::fn_decl(&token_ref[..]).expect("Could not parse main.lc");
+
+  println!("Function: {fn_decl:?}");
 
   let output_name = format!(
     "{name}-{version}-{format}{ext}",

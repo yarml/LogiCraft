@@ -1,11 +1,11 @@
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnOp {
   Not,
   Negate,
   Identity,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOp {
   Add,
   Sub,
@@ -20,7 +20,7 @@ pub enum BinOp {
   GreaterOrEqual,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Op {
   Un(UnOp),
   Bin(BinOp),
@@ -29,7 +29,7 @@ pub enum Op {
   RawSub,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AssignOp {
   Identity,
   Add,

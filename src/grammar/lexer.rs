@@ -61,6 +61,9 @@ peg::parser! {
     rule colon() -> Token = quiet! {
       ":" { Token::Colon }
     } / expected!("Colon")
+    rule arrow() -> Token = quiet! {
+      "->" { Token::Arrow }
+    } / expected!("Arrow")
 
     rule digit_bin() -> u64 = quiet! {
       d:$(['0'..='1']) { d.parse().unwrap() }
@@ -255,8 +258,9 @@ peg::parser! {
       literal_character() /
       literal_string() /
       identifier() /
-      op() /
+      arrow() /
       assignop() /
+      op() /
       brackets() /
       semicolon() /
       separator() /
@@ -315,7 +319,9 @@ fn keywords() -> &'static HashMap<&'static str, Token> {
     map.insert("let", Token::Keyword(Keyword::Let));
     map.insert("if", Token::Keyword(Keyword::If));
     map.insert("else", Token::Keyword(Keyword::Else));
+    map.insert("return", Token::Keyword(Keyword::Ret));
 
+    map.insert("void", Token::Builtin(Builtin::Type(BuiltinType::Void)));
     map.insert("bool", Token::Builtin(Builtin::Type(BuiltinType::Bool)));
     map.insert("int", Token::Builtin(Builtin::Type(BuiltinType::Int)));
     map.insert("float", Token::Builtin(Builtin::Type(BuiltinType::Float)));
@@ -351,6 +357,7 @@ pub enum Token {
   Dot,
   Comma,
   Colon,
+  Arrow,
 
   Op(Op),
   AssignOp(AssignOp),
