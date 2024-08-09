@@ -5,6 +5,7 @@ use super::{
   lexer::Token,
   operators::{AssignOp, BinOp, Precedence, UnOp},
 };
+use crate::semantics::stage1::validator::StaticType;
 use peg::parser;
 
 parser! {
@@ -209,13 +210,13 @@ pub enum Node {
 impl ExpressionNode {
   pub fn can_reduce(&self) -> bool {
     match self {
-      ExpressionNode::AtomInteger(_) => false,
-      ExpressionNode::AtomString(_) => false,
-      ExpressionNode::AtomBoolean(_) => false,
-      ExpressionNode::AtomFloat(_) => false,
-      ExpressionNode::AtomIdentifier(_) => false,
-      ExpressionNode::BuiltinCall(_, _) => false,
-      ExpressionNode::FunctionCall(_, _) => false,
+      ExpressionNode::AtomFloat(_)
+      | ExpressionNode::AtomIdentifier(_)
+      | ExpressionNode::BuiltinCall(_, _)
+      | ExpressionNode::FunctionCall(_, _)
+      | ExpressionNode::AtomBoolean(_)
+      | ExpressionNode::AtomString(_)
+      | ExpressionNode::AtomInteger(_) => false,
       ExpressionNode::UnOp(_, operand) => operand.is_known(),
       ExpressionNode::BinOp(left, _, right) => {
         left.is_known() && right.is_known()
@@ -225,13 +226,13 @@ impl ExpressionNode {
 
   pub fn is_known(&self) -> bool {
     match self {
-      ExpressionNode::AtomInteger(_) => true,
-      ExpressionNode::AtomString(_) => true,
-      ExpressionNode::AtomBoolean(_) => true,
-      ExpressionNode::AtomFloat(_) => true,
-      ExpressionNode::AtomIdentifier(_) => false,
-      ExpressionNode::BuiltinCall(_, _) => false,
-      ExpressionNode::FunctionCall(_, _) => false,
+      ExpressionNode::AtomInteger(_)
+      | ExpressionNode::AtomString(_)
+      | ExpressionNode::AtomBoolean(_)
+      | ExpressionNode::AtomFloat(_) => true,
+      ExpressionNode::AtomIdentifier(_)
+      | ExpressionNode::BuiltinCall(_, _)
+      | ExpressionNode::FunctionCall(_, _) => false,
       ExpressionNode::UnOp(_, expr) => expr.is_known(),
       ExpressionNode::BinOp(left, _, right) => {
         left.is_known() && right.is_known()
@@ -302,11 +303,56 @@ impl ExpressionNode {
             {
               *self = ExpressionNode::AtomBoolean(op.execute_comp(l, r));
             }
+            (ExpressionNode::AtomString(l), ExpressionNode::AtomString(r))
+              if *op == BinOp::Add =>
+            {
+              *self = ExpressionNode::AtomString(format!("{l}{r}"));
+            }
+            (ExpressionNode::AtomString(l), ExpressionNode::AtomInteger(r))
+              if *op == BinOp::Add =>
+            {
+              *self = ExpressionNode::AtomString(format!("{l}{r}"));
+            }
+            (ExpressionNode::AtomString(l), ExpressionNode::AtomFloat(r))
+              if *op == BinOp::Add =>
+            {
+              *self = ExpressionNode::AtomString(format!("{l}{r}"));
+            }
+            (ExpressionNode::AtomInteger(l), ExpressionNode::AtomString(r))
+              if *op == BinOp::Add =>
+            {
+              *self = ExpressionNode::AtomString(format!("{l}{r}"));
+            }
+            (ExpressionNode::AtomFloat(l), ExpressionNode::AtomString(r))
+              if *op == BinOp::Add =>
+            {
+              *self = ExpressionNode::AtomString(format!("{l}{r}"));
+            }
             _ => {}
           }
         }
       }
       _ => {}
+    }
+  }
+
+  pub fn static_type(&self) -> StaticType {
+    match self {
+      ExpressionNode::AtomInteger(_) => StaticType::Int,
+      ExpressionNode::AtomString(_) => StaticType::String,
+      ExpressionNode::AtomBoolean(_) => StaticType::Bool,
+      ExpressionNode::AtomFloat(_) => StaticType::Float,
+      ExpressionNode::AtomIdentifier(_) => StaticType::Any,
+      ExpressionNode::BuiltinCall(fun, _) => fun.static_return_type(),
+      ExpressionNode::FunctionCall(_, _) => StaticType::Any,
+      ExpressionNode::UnOp(op, expr) => {
+        expr.static_type().modified_type_un(*op)
+      }
+      ExpressionNode::BinOp(e1, op, e2) => {
+        let t1 = e1.static_type();
+        let t2 = e2.static_type();
+        t1.modified_type_bin(t2, *op)
+      }
     }
   }
 }

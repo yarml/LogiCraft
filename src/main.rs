@@ -4,6 +4,7 @@ mod grammar;
 mod output;
 mod pipeline;
 mod semantics;
+mod error;
 
 use control::cli::{getargs, OutputType};
 use control::config::getconfig;
