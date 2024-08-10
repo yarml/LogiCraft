@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use super::location::Location;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ErrorContext {
@@ -16,16 +16,6 @@ pub struct Message {
 pub enum MessageType {
   Warning,
   Error,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Location {
-  Index(usize),
-  UserFriendly {
-    file: PathBuf,
-    line: usize,
-    column: usize,
-  },
 }
 
 impl ErrorContext {

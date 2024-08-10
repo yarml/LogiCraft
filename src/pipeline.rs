@@ -9,7 +9,7 @@ use crate::{
     lexer::lexer,
     parser::{parser, Node},
   },
-  semantics::{module::ModulePath, stage1::{self, optimizer::ast_optimize, validator::validate}},
+  semantics::module::ModulePath,
 };
 
 #[derive(Debug, Clone)]
@@ -39,20 +39,8 @@ impl Pipeline {
     context.loaded
   }
 
-  fn stage1_optimize(nodes: &mut Vec<Node>) {
-    ast_optimize(nodes);
-  }
-  fn stage1_validate(nodes: &[Node]) {
-    stage1::validator::validate(nodes);
-  }
-
   pub fn run(&self) {
-    let mut modules = self.load();
-
-    // Stage 1 Optimization & Validation
-    for nodes in modules.values_mut() {
-      Pipeline::stage1_optimize(nodes);
-    }
+    self.load();
   }
 }
 
