@@ -13,19 +13,6 @@ pub struct WithRawLineInfo<T> {
   pub len: usize,
 }
 
-trait Bake<Q, S> {
-  fn bake(self, start: usize, len: usize, source: S) -> WithLineInfo<Q>;
-}
-
-impl<T> WithRawLineInfo<T> {
-  pub fn bake<Q, S>(self, source: S) -> WithLineInfo<Q>
-  where
-    T: Bake<Q, S>,
-  {
-    T::bake(self.value, self.start, self.len, source)
-  }
-}
-
 impl<T> PartialEq for WithRawLineInfo<T>
 where
   T: PartialEq,
@@ -41,5 +28,20 @@ where
 {
   fn eq(&self, other: &Self) -> bool {
     self.value == other.value
+  }
+}
+
+impl<T> WithRawLineInfo<T> {
+  pub fn bake<S>(self, source: S) -> WithLineInfo<T>
+  where
+    S: FnOnce(usize, usize) -> (usize, usize, usize),
+  {
+    let (line, column, len) = source(self.start, self.len);
+    WithLineInfo {
+      value: self.value,
+      line,
+      column,
+      len,
+    }
   }
 }

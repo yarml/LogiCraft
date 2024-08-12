@@ -19,7 +19,7 @@ impl Lexer {
       .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
       .collect::<Vec<_>>();
 
-    fn line_column(newlines: &[usize], start: usize) -> (usize, usize) {
+    let line_info = |start, len: usize| {
       let line = newlines
         .iter()
         .position(|&i| i > start)
@@ -28,32 +28,21 @@ impl Lexer {
         .get(line.wrapping_sub(1))
         .map(|&i| start - i)
         .unwrap_or(start);
-      (line + 1, column)
-    }
+      (line + 1, column, len)
+    };
 
     match peg::lexer::lex(input) {
       Err(err) => {
-        let (line, column) = line_column(&newlines, err.location.offset);
+        let (line, column, _) = line_info(err.location.offset, 0);
         Err(LexerError {
           line,
           column,
           len: err.location.offset,
         })
       }
-      Ok(tokens) => Ok(
-        tokens
-          .into_iter()
-          .map(|rtm| {
-            let (line, column) = line_column(&newlines, rtm.start);
-            WithLineInfo {
-              value: rtm.value,
-              line,
-              column,
-              len: rtm.len,
-            }
-          })
-          .collect(),
-      ),
+      Ok(tokens) => {
+        Ok(tokens.into_iter().map(|rtm| rtm.bake(line_info)).collect())
+      }
     }
   }
 }
