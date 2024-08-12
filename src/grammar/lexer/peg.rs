@@ -3,7 +3,7 @@ use super::helper::{
 };
 use super::Token;
 use crate::grammar::operators::{AssignOp, BinOp, Op, UnOp};
-use crate::report::location::WithRawLineInfo;
+use crate::report::location::WithLineInfo;
 
 peg::parser! {
   pub(super) grammar lexer() for str {
@@ -173,7 +173,8 @@ rule digit_bin() -> u64 = d:$(['0'..='1']) { d.parse().unwrap() }    rule digit_
       assignop_div()
 
 
-    rule any() -> WithRawLineInfo<Token> =
+    rule any<F>(line_info: F) -> WithLineInfo<Token>
+      where F: Fn(usize, usize) -> (usize, usize, usize) =
       start:position!() token:(
         literal_integer() /
         literal_float() /
@@ -191,13 +192,17 @@ rule digit_bin() -> u64 = d:$(['0'..='1']) { d.parse().unwrap() }    rule digit_
         colon()
       )
       end: position!() {
-        WithRawLineInfo {
+        let (line, column, len) = line_info(start, end);
+        WithLineInfo {
           value: token,
-          start,
-          len: end - start,
+          line,
+          column,
+          len,
         }
       }
 
-    pub rule lex() -> Vec<WithRawLineInfo<Token>> = any()*
+    pub rule lex<F>(line_info: &F) -> Vec<WithLineInfo<Token>>
+      where F: Fn(usize, usize) -> (usize, usize, usize) =
+        any(&line_info)*
   }
 }
