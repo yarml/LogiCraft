@@ -1,36 +1,67 @@
 use super::{
-  builtins::{Builtin, BuiltinFn, BuiltinType},
-  identifier::{Identifier, Name, Type, TypedName},
+  builtins::{Builtin, BuiltinFn},
+  identifier::{
+    Identifier, Name, Type, TypedNameWithLineInfo, TypedNameWithRawLineInfo,
+  },
   keywords::Keyword,
-  lexer::{Token, TokenMeta},
+  lexer::token::Token,
   operators::{AssignOp, BinOp, Precedence, UnOp},
 };
-use crate::report::error::report_and_exit;
+use crate::report::{
+  error::report_and_exit, location::WithLineInfo, location::WithRawLineInfo,
+};
 use peg::{error::ExpectedSet, parser};
 use std::path::PathBuf;
 
 parser! {
   grammar parser<'a>() for [&'a Token] {
-    rule name() -> Name = quiet! {
-      [Token::Identifier(name) if name.is_singular()] {
-        name.parts[0].clone()
+    rule name() -> WithRawLineInfo<Name> = quiet! {
+      start:position!()
+      [Token::Identifier(name) if name.is_singular()]
+      end:position!() {
+        WithRawLineInfo {
+          value: name.parts[0].clone(),
+          start: start,
+          len: end - start
+        }
     }} / expected!("Name");
 
-    rule param_decl() -> TypedName = quiet! {
+    rule identifier() -> WithRawLineInfo<Identifier> =
+      start:position!()
+      [Token::Identifier(id)] end:position!() {
+        WithRawLineInfo {
+          value: id.clone(),
+          start: start,
+          len: end - start
+        }
+      };
+
+    rule param_decl() -> TypedNameWithRawLineInfo = quiet! {
       name:name() [Token::Separator]? [Token::Colon] [Token::Separator]?
-      tn:(
+      tp_start: position!()
+      tp:(
         [Token::Identifier(t)] {
-          TypedName(name.clone(), Type::Declared(t.clone()))
+          Type::Declared(t.clone())
         } /
         [Token::Builtin(Builtin::Type(t))] {
-          TypedName(name.clone(), Type::Builtin(*t))
+          Type::Builtin(*t)
         }
-      ) { tn }
+      )
+      tp_end:position!() {
+        TypedNameWithRawLineInfo(
+          name,
+          WithRawLineInfo {
+            value: tp,
+            start: tp_start,
+            len: tp_end - tp_start
+          }
+        )
+      }
     } / expected!("Parameter");
     rule param_sep() = quiet! {
       [Token::Separator]? [Token::Comma] [Token::Separator]?
     } / expected!("Parameter Separator");
-    rule params_decl() -> Vec<TypedName> = quiet! {
+    rule params_decl() -> Vec<TypedNameWithRawLineInfo> = quiet! {
       p:(
         param_decl() ** param_sep()
       ) param_sep()? { p }
@@ -95,12 +126,12 @@ parser! {
 
     rule assignment() -> RawNode =
     start:position!()
-    [Token::Identifier(name)] [Token::Separator]?
+    id:identifier() [Token::Separator]?
     [Token::AssignOp(op)] [Token::Separator]?
     e:expression()
     end:position!() {
       RawNode {
-        data: NodeData::Assignment(name.clone(), *op, e),
+        data: NodeData::Assignment(id, *op, e),
         start: start,
         len: end - start
       }
@@ -109,20 +140,35 @@ parser! {
     start:position!()
       [Token::Keyword(Keyword::Let)] [Token::Separator]
       name:name() [Token::Separator]?
-      tn:([Token::Colon] [Token::Separator]?
+      type_info:([Token::Colon] [Token::Separator]?
+        tp_start:position!()
         tn:(
           [Token::Identifier(t)] {
-            TypedName(name.clone(), Type::Declared(t.clone()))
+            Type::Declared(t.clone())
           } /
           [Token::Builtin(Builtin::Type(t))] {
-            TypedName(name.clone(), Type::Builtin(*t))
+            Type::Builtin(*t)
           }
-        )? { tn }) [Token::Separator]?
+        )?
+        tp_end:position!() {
+          (tn, tp_start, tp_end)
+        }
+      ) [Token::Separator]?
       [Token::AssignOp(AssignOp::Identity)] [Token::Separator]?
       e:expression()
       end:position!() {
+        let (tn, tp_start, tp_end) = type_info;
         RawNode {
-          data: NodeData::VarDecl(tn, e),
+          data: NodeData::VarDecl(
+            tn.map(|t| TypedNameWithRawLineInfo(
+                name,
+                WithRawLineInfo {
+                  value: t,
+                  start: tp_start,
+                  len: tp_end - tp_start
+                }
+              )),
+            e),
           start: start,
           len: end - start
         }
@@ -158,11 +204,16 @@ parser! {
       params:params_decl() [Token::Separator]?
       [Token::ParenClose] [Token::Separator]?
       ret_type:(
-        [Token::Arrow] [Token::Separator]? t:(
+        [Token::Arrow] [Token::Separator]? start:position!() t:(
           [Token::Identifier(t)] { Type::Declared(t.clone()) } /
           [Token::Builtin(Builtin::Type(t))] { Type::Builtin(*t) }
-        ) [Token::Separator]? { t }
-
+        ) end:position!() [Token::Separator]? {
+          WithRawLineInfo {
+            value: t,
+            start,
+            len: end-start
+          }
+        }
       )?
       [Token::BraceOpen] [Token::Separator]?
       stmts:statements() [Token::Separator]?
@@ -172,11 +223,7 @@ parser! {
           data: NodeData::FnDecl(
             name,
             params,
-            ret_type.unwrap_or(
-              Type::Builtin(
-                BuiltinType::Void
-              )
-            ),
+            ret_type,
             stmts
           ),
           start: start,
@@ -242,11 +289,11 @@ pub enum ExpressionNodeData<E> {
 }
 
 #[derive(Debug, Clone)]
-pub enum NodeData<E, D> {
-  Expression(E),
-  Assignment(Identifier, AssignOp, E),
-  VarDecl(Option<TypedName>, E),
-  FnDecl(Name, Vec<TypedName>, Type, Vec<D>),
+pub enum NodeData<Expr, Node, Identifier, Name, TypedName, Type> {
+  Expression(Expr),
+  Assignment(Identifier, AssignOp, Expr),
+  VarDecl(Option<TypedName>, Expr),
+  FnDecl(Name, Vec<TypedName>, Option<Type>, Vec<Node>),
   ModDecl(Name),
   StructDecl(Name, Vec<TypedName>),
 }
@@ -260,7 +307,7 @@ struct RawExpressionNode {
 
 #[derive(Debug, Clone)]
 struct RawNode {
-  data: NodeData<RawExpressionNode, RawNode>,
+  data: RawNodeData,
   start: usize,
   len: usize,
 }
@@ -275,11 +322,28 @@ pub struct ExpressionNode {
 
 #[derive(Debug, Clone)]
 pub struct Node {
-  pub data: NodeData<ExpressionNode, Node>,
+  pub data: BakedNodeData,
   pub line: usize,
   pub column: usize,
   pub len: usize,
 }
+
+pub type BakedNodeData = NodeData<
+  ExpressionNode,
+  Node,
+  WithLineInfo<Identifier>,
+  WithLineInfo<Name>,
+  TypedNameWithLineInfo,
+  WithLineInfo<Type>,
+>;
+pub type RawNodeData = NodeData<
+  RawExpressionNode,
+  RawNode,
+  WithRawLineInfo<Identifier>,
+  WithRawLineInfo<Name>,
+  TypedNameWithRawLineInfo,
+  WithRawLineInfo<Type>,
+>;
 
 pub struct Parser;
 
@@ -295,7 +359,7 @@ pub struct ParserError {
 fn get_line_info(
   start: usize,
   len: usize,
-  tokens: &[TokenMeta],
+  tokens: &[WithLineInfo<Token>],
 ) -> (usize, usize, usize) {
   let line = tokens[start].line;
   let column = tokens[start].column;
@@ -303,9 +367,37 @@ fn get_line_info(
   (line, column, len)
 }
 
+fn bake_generic<T>(
+  raw: WithRawLineInfo<T>,
+  tokens: &[WithLineInfo<Token>],
+) -> WithLineInfo<T> {
+  let (line, column, len) = get_line_info(raw.start, raw.len, tokens);
+  WithLineInfo {
+    value: raw.value,
+    line,
+    column,
+    len,
+  }
+}
+
+fn bake_typed_name(
+  raw_typed_name: TypedNameWithRawLineInfo,
+  tokens: &[WithLineInfo<Token>],
+) -> TypedNameWithLineInfo {
+  TypedNameWithLineInfo(
+    bake_generic(raw_typed_name.0, tokens),
+    WithLineInfo {
+      value: raw_typed_name.1.value,
+      line: raw_typed_name.1.start,
+      column: raw_typed_name.1.start,
+      len: raw_typed_name.1.len,
+    },
+  )
+}
+
 fn bake_expression_data(
   raw_expression_data: ExpressionNodeData<RawExpressionNode>,
-  tokens: &[TokenMeta],
+  tokens: &[WithLineInfo<Token>],
 ) -> ExpressionNodeData<ExpressionNode> {
   match raw_expression_data {
     ExpressionNodeData::AtomInteger(i) => ExpressionNodeData::AtomInteger(i),
@@ -343,7 +435,7 @@ fn bake_expression_data(
 
 fn bake_expression(
   raw_expression: RawExpressionNode,
-  tokens: &[TokenMeta],
+  tokens: &[WithLineInfo<Token>],
 ) -> ExpressionNode {
   let (line, column, len) =
     get_line_info(raw_expression.start, raw_expression.len, tokens);
@@ -356,31 +448,49 @@ fn bake_expression(
   }
 }
 fn bake_node_data(
-  raw_node_data: NodeData<RawExpressionNode, RawNode>,
-  tokens: &[TokenMeta],
-) -> NodeData<ExpressionNode, Node> {
+  raw_node_data: RawNodeData,
+  tokens: &[WithLineInfo<Token>],
+) -> BakedNodeData {
   match raw_node_data {
     NodeData::Expression(expr) => {
       NodeData::Expression(bake_expression(expr, tokens))
     }
-    NodeData::Assignment(id, op, expr) => {
-      NodeData::Assignment(id, op, bake_expression(expr, tokens))
-    }
-    NodeData::VarDecl(tn, expr) => {
-      NodeData::VarDecl(tn, bake_expression(expr, tokens))
-    }
+    NodeData::Assignment(id, op, expr) => NodeData::Assignment(
+      bake_generic(id, tokens),
+      op,
+      bake_expression(expr, tokens),
+    ),
+    NodeData::VarDecl(tn, expr) => NodeData::VarDecl(
+      tn.map(|tn| bake_typed_name(tn, tokens)),
+      bake_expression(expr, tokens),
+    ),
     NodeData::FnDecl(name, params, ret_type, stmts) => {
       let baked_stmts = stmts
         .into_iter()
         .map(|stmt| bake_node(stmt, tokens))
         .collect();
-      NodeData::FnDecl(name, params, ret_type, baked_stmts)
+      let baked_params = params
+        .into_iter()
+        .map(|p| bake_typed_name(p, tokens))
+        .collect();
+      NodeData::FnDecl(
+        bake_generic(name, tokens),
+        baked_params,
+        ret_type.map(|t| bake_generic(t, tokens)),
+        baked_stmts,
+      )
     }
-    NodeData::ModDecl(name) => NodeData::ModDecl(name),
-    NodeData::StructDecl(name, fields) => NodeData::StructDecl(name, fields),
+    NodeData::ModDecl(name) => NodeData::ModDecl(bake_generic(name, tokens)),
+    NodeData::StructDecl(name, fields) => {
+      let baked_fields = fields
+        .into_iter()
+        .map(|f| bake_typed_name(f, tokens))
+        .collect();
+      NodeData::StructDecl(bake_generic(name, tokens), baked_fields)
+    }
   }
 }
-fn bake_node(raw_node: RawNode, tokens: &[TokenMeta]) -> Node {
+fn bake_node(raw_node: RawNode, tokens: &[WithLineInfo<Token>]) -> Node {
   let (line, column, len) = get_line_info(raw_node.start, raw_node.len, tokens);
   Node {
     data: bake_node_data(raw_node.data, tokens),
@@ -391,8 +501,11 @@ fn bake_node(raw_node: RawNode, tokens: &[TokenMeta]) -> Node {
 }
 
 impl Parser {
-  pub fn parse(&self, tokens: &[TokenMeta]) -> Result<Vec<Node>, ParserError> {
-    let tokens_ref = tokens.iter().map(|tm| &tm.token).collect::<Vec<_>>();
+  pub fn parse(
+    &self,
+    tokens: &[WithLineInfo<Token>],
+  ) -> Result<Vec<Node>, ParserError> {
+    let tokens_ref = tokens.iter().map(|tm| &tm.value).collect::<Vec<_>>();
     match parser::decls(&tokens_ref) {
       Ok(nodes) => {
         Ok(nodes.into_iter().map(|rn| bake_node(rn, tokens)).collect())
@@ -401,7 +514,7 @@ impl Parser {
         line: tokens[e.location].line,
         column: tokens[e.location].column,
         len: tokens[e.location].len,
-        unexpected: tokens[e.location].token.clone(),
+        unexpected: tokens[e.location].value.clone(),
         expected: e.expected,
       }),
     }

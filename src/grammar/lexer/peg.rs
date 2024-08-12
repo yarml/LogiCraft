@@ -1,14 +1,12 @@
-use super::{
-  builtins::{Builtin, BuiltinFn, BuiltinType},
-  identifier::{Identifier, Name},
-  keywords::Keyword,
-  operators::{AssignOp, BinOp, Op, UnOp},
+use super::helper::{
+  parse_identifier, parse_literal_float, parse_literal_integer,
 };
-use crate::report::error::report_and_exit;
-use std::{collections::HashMap, path::PathBuf, sync::OnceLock};
+use super::Token;
+use crate::grammar::operators::{AssignOp, BinOp, Op, UnOp};
+use crate::report::location::WithRawLineInfo;
 
 peg::parser! {
-  grammar lexer() for str {
+  pub(super) grammar lexer() for str {
     rule comment() = quiet! {
       "//" [^ '\n']* "\n"? / "/**/" / "/*" (!"*/" [_])* "*/"
     } / expected!("Comment")
@@ -252,7 +250,7 @@ peg::parser! {
       assignop_div()
     } / expected!("Assignment Operator")
 
-    rule any() -> RawTokenMeta = quiet! {
+    rule any() -> WithRawLineInfo<Token> = quiet! {
       start:position!() token:(
         literal_integer() /
         literal_float() /
@@ -269,220 +267,14 @@ peg::parser! {
         comma() /
         colon()
       )
-      end: position!() { RawTokenMeta { token, start, len: end - start } }
-    } / expected!("Any Token")
-    pub(super) rule lex() -> Vec<RawTokenMeta> = any()*
-  }
-}
-
-fn parse_literal_integer(
-  literal: &str,
-  base: u32,
-) -> Result<u64, &'static str> {
-  let literal = literal.replace("_", "");
-  Ok(u64::from_str_radix(&literal, base).or(Err(""))?)
-}
-fn parse_literal_float(literal: &str) -> Result<Token, &'static str> {
-  let literal = literal.replace("_", "");
-  Ok(Token::LiteralFloat(literal.parse().or(Err(""))?))
-}
-fn parse_identifier(
-  root: bool,
-  parts: Vec<Name>,
-) -> Result<Token, &'static str> {
-  let kw = parts.iter().find_map(|part| {
-    let kws = keywords();
-    if let Some(token) = kws.get(part.as_str()) {
-      Some(token.clone())
-    } else {
-      None
-    }
-  });
-  if let Some(token) = kw {
-    if root || parts.len() != 1 {
-      Err("")
-    } else {
-      Ok(token)
-    }
-  } else {
-    Ok(Token::Identifier(Identifier { root, parts }))
-  }
-}
-
-static KEYWORDS_MAP: OnceLock<HashMap<&'static str, Token>> = OnceLock::new();
-
-fn keywords() -> &'static HashMap<&'static str, Token> {
-  KEYWORDS_MAP.get_or_init(|| {
-    let mut map = HashMap::new();
-    map.insert("true", Token::LiteralBoolean(true));
-    map.insert("false", Token::LiteralBoolean(false));
-
-    map.insert("mod", Token::Keyword(Keyword::Mod));
-    map.insert("fn", Token::Keyword(Keyword::Fn));
-    map.insert("let", Token::Keyword(Keyword::Let));
-    map.insert("if", Token::Keyword(Keyword::If));
-    map.insert("else", Token::Keyword(Keyword::Else));
-    map.insert("return", Token::Keyword(Keyword::Ret));
-
-    map.insert("struct", Token::Keyword(Keyword::Struct));
-
-    map.insert("void", Token::Builtin(Builtin::Type(BuiltinType::Void)));
-    map.insert("bool", Token::Builtin(Builtin::Type(BuiltinType::Bool)));
-    map.insert("int", Token::Builtin(Builtin::Type(BuiltinType::Int)));
-    map.insert("float", Token::Builtin(Builtin::Type(BuiltinType::Float)));
-    map.insert("char", Token::Builtin(Builtin::Type(BuiltinType::Char)));
-    map.insert("string", Token::Builtin(Builtin::Type(BuiltinType::String)));
-
-    map.insert("println", Token::Builtin(Builtin::Fn(BuiltinFn::PrintLn)));
-
-    map
-  })
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-  Separator,
-
-  LiteralBoolean(bool),
-  LiteralInteger(u64),
-  LiteralFloat(f64),
-  LiteralCharacter(char),
-  LiteralString(String),
-
-  Identifier(Identifier),
-
-  ParenOpen,
-  ParenClose,
-  BraceOpen,
-  BraceClose,
-  BracketOpen,
-  BracketClose,
-
-  SemiColon,
-  Dot,
-  Comma,
-  Colon,
-  Arrow,
-
-  Op(Op),
-  AssignOp(AssignOp),
-
-  Keyword(Keyword),
-  Builtin(Builtin),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct RawTokenMeta {
-  token: Token,
-  start: usize,
-  len: usize,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TokenMeta {
-  pub token: Token,
-  pub line: usize,
-  pub column: usize,
-  pub len: usize,
-}
-
-pub struct Lexer;
-
-#[derive(Debug, Clone)]
-pub struct LexerError {
-  pub line: usize,
-  pub column: usize,
-  pub len: usize,
-}
-
-impl Lexer {
-  pub fn lex(&self, input: &str) -> Result<Vec<TokenMeta>, LexerError> {
-    let newlines = input
-      .char_indices()
-      .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
-      .collect::<Vec<_>>();
-
-    fn line_column(newlines: &[usize], start: usize) -> (usize, usize) {
-      let line = newlines
-        .iter()
-        .position(|&i| i > start)
-        .unwrap_or(newlines.len());
-      let column = newlines
-        .get(line.wrapping_sub(1))
-        .map(|&i| start - i)
-        .unwrap_or(start);
-      (line + 1, column)
-    }
-
-    match lexer::lex(input) {
-      Err(err) => {
-        let (line, column) = line_column(&newlines, err.location.offset);
-        Err(LexerError {
-          line,
-          column,
-          len: err.location.offset,
-        })
+      end: position!() {
+        WithRawLineInfo {
+          value: token,
+          start,
+          len: end - start,
+        }
       }
-      Ok(tokens) => Ok(
-        tokens
-          .into_iter()
-          .map(|rtm| {
-            let (line, column) = line_column(&newlines, rtm.start);
-            TokenMeta {
-              token: rtm.token,
-              line,
-              column,
-              len: rtm.len,
-            }
-          })
-          .collect(),
-      ),
-    }
-  }
-}
-
-impl LexerError {
-  pub fn report_and_exit(&self, path: &PathBuf, source: &str) -> ! {
-    let line = source.lines().nth(self.line - 1).unwrap();
-    report_and_exit(
-      line,
-      &path,
-      self.line,
-      self.column,
-      self.len,
-      "Unexpected token",
-      None,
-      1,
-    );
-  }
-}
-
-impl Token {
-  pub fn error_symbol(&self) -> &'static str {
-    match self {
-      Token::Separator => "space",
-      Token::LiteralBoolean(_) => "bool",
-      Token::LiteralInteger(_) => "int",
-      Token::LiteralFloat(_) => "float",
-      Token::LiteralCharacter(_) => "char",
-      Token::LiteralString(_) => "string",
-      Token::Identifier(_) => "identifier",
-      Token::ParenOpen => "(",
-      Token::ParenClose => ")",
-      Token::BraceOpen => "{",
-      Token::BraceClose => "}",
-      Token::BracketOpen => "[",
-      Token::BracketClose => "]",
-      Token::SemiColon => "semicolon",
-      Token::Dot => ".",
-      Token::Comma => ",",
-      Token::Colon => ":",
-      Token::Arrow => "->",
-      Token::Op(_) => "operator",
-      Token::AssignOp(_) => "assignment operator",
-      Token::Keyword(kwd) => kwd.error_symbol(),
-      Token::Builtin(Builtin::Fn(_)) => "builtin function",
-      Token::Builtin(Builtin::Type(_)) => "builtin type",
-    }
+    } / expected!("Any Token")
+    pub rule lex() -> Vec<WithRawLineInfo<Token>> = any()*
   }
 }
