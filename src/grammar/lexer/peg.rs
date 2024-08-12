@@ -7,150 +7,96 @@ use crate::report::location::WithRawLineInfo;
 
 peg::parser! {
   pub(super) grammar lexer() for str {
-    rule comment() = quiet! {
-      "//" [^ '\n']* "\n"? / "/**/" / "/*" (!"*/" [_])* "*/"
-    } / expected!("Comment")
-    rule whitespace() = quiet! {
+    rule comment() = "//" [^ '\n']* "\n"? / "/**/" / "/*" (!"*/" [_])* "*/"
+    rule whitespace() =
       (" " / "\t" / "\n" / "\r" /
       "\u{000B}" / "\u{000C}" / "\u{0085}" / "\u{200E}" /
       "\u{200F}" / "\u{2028}" / "\u{2029}")+
-    } / expected!("Whitespace")
-    rule separator() -> Token = quiet! {
+    rule separator() -> Token =
       whitespace() (comment() / whitespace())* { Token::Separator }
-    } / expected!("Separator")
 
-    rule paren_open() -> Token = quiet! {
-      "(" { Token::ParenOpen }
-    } / expected!("Open Parenthesis")
-    rule paren_close() -> Token = quiet! {
-      ")" { Token::ParenClose }
-    } / expected!("Close Parenthesis")
-    rule brace_open() -> Token = quiet! {
-      "{" { Token::BraceOpen }
-    } / expected!("Open Brace")
-    rule brace_close() -> Token = quiet! {
-      "}" { Token::BraceClose }
-    } / expected!("Close Brace")
-    rule bracket_open() -> Token = quiet! {
-      "[" { Token::BracketOpen }
-    } / expected!("Open Bracket")
-    rule bracket_close() -> Token = quiet! {
-      "]" { Token::BracketClose }
-    } / expected!("Close Bracket")
+    rule paren_open() -> Token ="(" { Token::ParenOpen }
+    rule paren_close() -> Token =")" { Token::ParenClose }
+    rule brace_open() -> Token ="{" { Token::BraceOpen }
+    rule brace_close() -> Token ="}" { Token::BraceClose }
+    rule bracket_open() -> Token ="[" { Token::BracketOpen }
+    rule bracket_close() -> Token ="]" { Token::BracketClose }
 
-    rule brackets() -> Token = quiet! {
+    rule brackets() -> Token =
       paren_open() /
       paren_close() /
       brace_open() /
       brace_close() /
       bracket_open() /
       bracket_close()
-    } / expected!("Brackets")
 
-    rule semicolon() -> Token = quiet! {
-      ";" { Token::SemiColon }
-    } / expected!("Semi Colon")
-    rule dot() -> Token = quiet! {
-      "." { Token::Dot }
-    } / expected!("Dot")
-    rule comma() -> Token = quiet! {
-      "," { Token::Comma }
-    } / expected!("Comma")
-    rule colon() -> Token = quiet! {
-      ":" { Token::Colon }
-    } / expected!("Colon")
-    rule arrow() -> Token = quiet! {
-      "->" { Token::Arrow }
-    } / expected!("Arrow")
+    rule semicolon() -> Token = ";" { Token::SemiColon }
+    rule dot() -> Token = "." { Token::Dot }
+    rule comma() -> Token = "," { Token::Comma }
+    rule colon() -> Token = ":" { Token::Colon }
+    rule arrow() -> Token = "->" { Token::Arrow }
 
-    rule digit_bin() -> u64 = quiet! {
-      d:$(['0'..='1']) { d.parse().unwrap() }
-    } / expected!("Binary Digit")
-    rule digit_oct() -> u64 = quiet! {
-      d:$(['0'..='7']) { d.parse().unwrap() }
-    } / expected!("Octal Digit")
-    rule digit_dec() -> u64 = quiet! {
-      d:$(['0'..='9']) { d.parse().unwrap() }
-    } / expected!("Decimal Digit")
-    rule digit_hex() -> u64 = quiet! {
-      d:$(['0'..='9' | 'a'..='f' | 'A'..='F']) {
+rule digit_bin() -> u64 = d:$(['0'..='1']) { d.parse().unwrap() }    rule digit_oct() -> u64 = d:$(['0'..='7']) { d.parse().unwrap() }
+    rule digit_dec() -> u64 = d:$(['0'..='9']) { d.parse().unwrap() }
+    rule digit_hex() -> u64 =d:$(['0'..='9' | 'a'..='f' | 'A'..='F']) {
         u64::from_str_radix(d, 16).unwrap()
       }
-    } / expected!("Hexadecimal Digit")
 
-    rule sequence_bin() -> String = quiet! {
+    rule sequence_bin() -> String =
       "0b" n:$(digit_bin() (digit_bin() / "_")*) { n.into() }
-    } / expected!("Binary Sequence")
-    rule sequence_oct() -> String = quiet! {
+    rule sequence_oct() -> String =
       "0o" n:$(digit_oct() (digit_oct() / "_")*) { n.into() }
-    } / expected!("Octal Sequence")
-    rule sequence_dec() -> String = quiet! {
+    rule sequence_dec() -> String =
            n:$(digit_dec() (digit_dec() / "_")*) { n.into() }
-    } / expected!("Decimal Sequence")
-    rule sequence_hex() -> String = quiet! {
+    rule sequence_hex() -> String =
       "0x" n:$(digit_hex() (digit_hex() / "_")*) { n.into() }
-    } / expected!("Hexadecimal Sequence")
 
-    rule literal_bin() -> u64 = quiet! {
+    rule literal_bin() -> u64 =
       n:(sequence_bin()) {? parse_literal_integer(&n, 02) }
-    } / expected!("Binary Literal")
-    rule literal_oct() -> u64 = quiet! {
+    rule literal_oct() -> u64 =
       n:(sequence_oct()) {? parse_literal_integer(&n, 08) }
-    } / expected!("Octal Literal")
-    rule literal_dec() -> u64 = quiet! {
+    rule literal_dec() -> u64 =
       n:(sequence_dec()) {? parse_literal_integer(&n, 10) }
-    } / expected!("Decimal Literal")
-    rule literal_hex() -> u64 = quiet! {
+    rule literal_hex() -> u64 =
       n:(sequence_hex()) {? parse_literal_integer(&n, 16) }
-    } / expected!("Hexadecimal Literal")
 
-    rule literal_integer() -> Token = quiet! {
+    rule literal_integer() -> Token =
       n:(
         literal_bin() /
         literal_oct() /
         literal_hex() /
         literal_dec()
       ) { Token::LiteralInteger(n) }
-    } / expected!("Integer Literal")
-    rule literal_float() -> Token = quiet! {
+    rule literal_float() -> Token =
       n:$(
         sequence_dec() ("." sequence_dec())?
           ("e" / "E") ("+" / "-")? sequence_dec() /
         sequence_dec() "." sequence_dec() /
         sequence_dec() "." !"."
       ) {? parse_literal_float(n) }
-    } / expected!("Float Literal")
 
-    rule char_normal() -> char = quiet! {
-      [^ '\'' | '\\' | '\n' | '\r' | '\t']
-    } / expected!("Unescaped Character")
-    rule string_normal() -> char = quiet! {
-      [^ '"' | '\\' | '\n' | '\r' | '\t']
-    } / expected!("Unescaped Character")
+    rule char_normal() -> char = [^ '\'' | '\\' | '\n' | '\r' | '\t']
+    rule string_normal() -> char = [^ '"' | '\\' | '\n' | '\r' | '\t']
 
-    rule escape_quote() -> char = quiet! {
+    rule escape_quote() -> char =
       "\\" c:$("'" / "\"") { c.chars().nth(0).unwrap() }
-    } / expected!("Escaped Quote")
-    rule escape_ascii() -> char = quiet! {
+    rule escape_ascii() -> char =
       "\\x" cx:$(digit_oct() digit_hex()) {
         char::from_u32(u32::from_str_radix(cx, 16).unwrap()).unwrap()
       }
-    } / expected!("Escaped Raw Ascii")
-    rule escape_unicode() -> char = quiet! {
+    rule escape_unicode() -> char =
       "\\u{" n:$((digit_hex() "_"*)*<1, 6>) "}" {?
         char::from_u32(parse_literal_integer(n, 16).unwrap() as u32).ok_or("")
       }
-    } / expected!("Escaped Raw Unicode")
 
-    rule literal_character() -> Token = quiet! {
+    rule literal_character() -> Token =
       "'" c:(
         char_normal() /
         escape_quote() /
         escape_ascii() /
         escape_unicode()
       ) "'" {  Token::LiteralCharacter(c) }
-    } / expected!("Character Literal")
-    rule literal_string() -> Token = quiet! {
+    rule literal_string() -> Token =
       "\"" s:(
         (
           string_normal() /
@@ -158,58 +104,35 @@ peg::parser! {
           escape_unicode()
         )*
       ) "\"" { Token::LiteralString(s.iter().collect()) }
-    } / expected!("String Literal")
 
-    rule identifier_part() -> String = quiet! {
+    rule identifier_part() -> String =
       idp:$(
         ['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '_' | '0'..='9']*
       ) { idp.into() }
-    } / expected!("Identifier Part")
-    rule identifier() -> Token = quiet! {
+    rule identifier() -> Token =
       root:$("::"?) parts:(identifier_part() ++ "::") {?
         parse_identifier(root == "::", parts)
       }
-    } / expected!("Identifier")
 
-    rule unop_not() -> Token = quiet! {
-      "!" { Token::Op(Op::Un(UnOp::Not)) }
-    } / expected!("Operator Not")
+    rule unop_not() -> Token = "!" { Token::Op(Op::Un(UnOp::Not)) }
 
-    rule op_add() -> Token = quiet! {
-      "+" { Token::Op(Op::RawAdd) }
-    } / expected!("Operator Add")
-    rule op_sub() -> Token = quiet! {
-      "-" { Token::Op(Op::RawSub) }
-    } / expected!("Operator Sub")
-    rule binop_mul() -> Token = quiet! {
-      "*" { Token::Op(Op::Bin(BinOp::Mul)) }
-    } / expected!("Operator Mul")
-    rule binop_div() -> Token = quiet! {
-      "/" { Token::Op(Op::Bin(BinOp::Div)) }
-    } / expected!("Operator Div")
-    rule binop_mod() -> Token = quiet! {
-      "%" { Token::Op(Op::Bin(BinOp::Mod)) }
-    } / expected!("Operator Mod")
-    rule binop_equals() -> Token = quiet! {
-      "==" { Token::Op(Op::Bin(BinOp::Equal)) }
-    } / expected!("Operator Equals")
-    rule binop_not_equals() -> Token = quiet! {
+    rule op_add() -> Token = "+" { Token::Op(Op::RawAdd) }
+    rule op_sub() -> Token = "-" { Token::Op(Op::RawSub) }
+    rule binop_mul() -> Token = "*" { Token::Op(Op::Bin(BinOp::Mul)) }
+    rule binop_div() -> Token = "/" { Token::Op(Op::Bin(BinOp::Div)) }
+    rule binop_mod() -> Token = "%" { Token::Op(Op::Bin(BinOp::Mod)) }
+    rule binop_equals() -> Token = "==" { Token::Op(Op::Bin(BinOp::Equal)) }
+    rule binop_not_equals() -> Token =
       "!=" { Token::Op(Op::Bin(BinOp::NotEqual)) }
-    } / expected!("Operator Not Equals")
-    rule binop_greater() -> Token = quiet! {
-      ">" { Token::Op(Op::Bin(BinOp::Greater)) }
-    } / expected!("Operator Greater")
-    rule binop_lesser() -> Token = quiet! {
-      "<" { Token::Op(Op::Bin(BinOp::Less)) }
-    } / expected!("Operator Lesser")
-    rule binop_greater_equals() -> Token = quiet! {
+    rule binop_greater() -> Token = ">" { Token::Op(Op::Bin(BinOp::Greater)) }
+    rule binop_lesser() -> Token = "<" { Token::Op(Op::Bin(BinOp::Less)) }
+    rule binop_greater_equals() -> Token =
       ">=" { Token::Op(Op::Bin(BinOp::GreaterOrEqual)) }
-    } / expected!("Operator Greater or Equals")
-    rule binop_lesser_equals() -> Token = quiet! {
+    rule binop_lesser_equals() -> Token =
       "<=" { Token::Op(Op::Bin(BinOp::LessOrEqual)) }
-    } / expected!("Operator Lesser or Equals")
 
-    rule op() -> Token = quiet! {
+
+    rule op() -> Token =
       unop_not() /
       op_add() /
       op_sub() /
@@ -221,36 +144,36 @@ peg::parser! {
       binop_lesser_equals() /
       binop_greater() /
       binop_lesser()
-    } / expected!("Binary Operator")
 
-    rule assignop_identity() -> Token = quiet! {
+
+    rule assignop_identity() -> Token =
       "=" { Token::AssignOp(AssignOp::Identity) }
-    } / expected!("Operator Assign")
-    rule assignop_add() -> Token = quiet! {
-      "+=" { Token::AssignOp(AssignOp::Add) }
-    } / expected!("Operator Add Assign")
-    rule assignop_sub() -> Token = quiet! {
-      "-=" { Token::AssignOp(AssignOp::Sub) }
-    } / expected!("Operator Sub Assign")
-    rule assignop_mul() -> Token = quiet! {
-      "*=" { Token::AssignOp(AssignOp::Mul) }
-    } / expected!("Operator Mul Assign")
-    rule assignop_div() -> Token = quiet! {
-      "/=" { Token::AssignOp(AssignOp::Div) }
-    } / expected!("Operator Div Assign")
-    rule assignop_mod() -> Token = quiet! {
-      "%=" { Token::AssignOp(AssignOp::Mod) }
-    } / expected!("Operator Mod Assign")
 
-    rule assignop() -> Token = quiet! {
+    rule assignop_add() -> Token =
+      "+=" { Token::AssignOp(AssignOp::Add) }
+
+    rule assignop_sub() -> Token =
+      "-=" { Token::AssignOp(AssignOp::Sub) }
+
+    rule assignop_mul() -> Token =
+      "*=" { Token::AssignOp(AssignOp::Mul) }
+
+    rule assignop_div() -> Token =
+      "/=" { Token::AssignOp(AssignOp::Div) }
+
+    rule assignop_mod() -> Token =
+      "%=" { Token::AssignOp(AssignOp::Mod) }
+
+
+    rule assignop() -> Token =
       assignop_identity() /
       assignop_add() /
       assignop_sub() /
       assignop_mul() /
       assignop_div()
-    } / expected!("Assignment Operator")
 
-    rule any() -> WithRawLineInfo<Token> = quiet! {
+
+    rule any() -> WithRawLineInfo<Token> =
       start:position!() token:(
         literal_integer() /
         literal_float() /
@@ -274,7 +197,7 @@ peg::parser! {
           len: end - start,
         }
       }
-    } / expected!("Any Token")
+
     pub rule lex() -> Vec<WithRawLineInfo<Token>> = any()*
   }
 }

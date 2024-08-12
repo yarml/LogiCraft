@@ -15,7 +15,7 @@ use std::path::PathBuf;
 
 parser! {
   grammar parser<'a>() for [&'a Token] {
-    rule name() -> WithRawLineInfo<Name> = quiet! {
+    rule name() -> WithRawLineInfo<Name> =
       start:position!()
       [Token::Identifier(name) if name.is_singular()]
       end:position!() {
@@ -24,7 +24,7 @@ parser! {
           start: start,
           len: end - start
         }
-    }} / expected!("Name");
+    };
 
     rule identifier() -> WithRawLineInfo<Identifier> =
       start:position!()
@@ -36,7 +36,7 @@ parser! {
         }
       };
 
-    rule param_decl() -> TypedNameWithRawLineInfo = quiet! {
+    rule param_decl() -> TypedNameWithRawLineInfo =
       name:name() [Token::Separator]? [Token::Colon] [Token::Separator]?
       tp_start: position!()
       tp:(
@@ -57,21 +57,16 @@ parser! {
           }
         )
       }
-    } / expected!("Parameter");
-    rule param_sep() = quiet! {
-      [Token::Separator]? [Token::Comma] [Token::Separator]?
-    } / expected!("Parameter Separator");
-    rule params_decl() -> Vec<TypedNameWithRawLineInfo> = quiet! {
+    rule param_sep() = [Token::Separator]? [Token::Comma] [Token::Separator]?
+    rule params_decl() -> Vec<TypedNameWithRawLineInfo> =
       p:(
         param_decl() ** param_sep()
       ) param_sep()? { p }
-    } / expected!("Parameters");
 
-    rule params() -> Vec<RawExpressionNode> = quiet! {
+    rule params() -> Vec<RawExpressionNode> =
       p:(
         expression() ** param_sep()
       ) param_sep()? { p }
-    } / expected!("Arguments");
 
     rule _() = [Token::Separator]?
 
@@ -174,7 +169,7 @@ parser! {
         }
       };
 
-    rule statement() -> RawNode = quiet! {
+    rule statement() -> RawNode =
       start:position!() e:expression() end:position!() {
         RawNode {
           data: NodeData::Expression(e),
@@ -184,17 +179,14 @@ parser! {
       } /
       assignment() /
       var_decl()
-    } / expected!("Statement");
 
-    rule statement_sep() = quiet! {
+    rule statement_sep() =
       [Token::Separator]? [Token::SemiColon] [Token::Separator]?
-    } / expected!("Statement Separator");
 
-    rule statements() -> Vec<RawNode> = quiet! {
+    rule statements() -> Vec<RawNode> =
       s:(
         statement() ** statement_sep()
       ) statement_sep()? { s }
-    } / expected!("Statements");
 
     rule global_fn_decl() -> RawNode =
       start:position!()
@@ -336,7 +328,7 @@ pub type BakedNodeData = NodeData<
   TypedNameWithLineInfo,
   WithLineInfo<Type>,
 >;
-pub type RawNodeData = NodeData<
+type RawNodeData = NodeData<
   RawExpressionNode,
   RawNode,
   WithRawLineInfo<Identifier>,
@@ -506,6 +498,14 @@ impl Parser {
     tokens: &[WithLineInfo<Token>],
   ) -> Result<Vec<Node>, ParserError> {
     let tokens_ref = tokens.iter().map(|tm| &tm.value).collect::<Vec<_>>();
+
+    let line_info = |start: usize, len: usize| {
+      let line = tokens[start].line;
+      let column = tokens[start].column;
+      let len: usize = tokens[start..start + len].iter().map(|tm| tm.len).sum();
+      (line, column, len)
+    };
+
     match parser::decls(&tokens_ref) {
       Ok(nodes) => {
         Ok(nodes.into_iter().map(|rn| bake_node(rn, tokens)).collect())
