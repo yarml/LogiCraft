@@ -1,14 +1,14 @@
-use std::{collections::HashMap, sync::OnceLock};
-
 use super::{
   builtins::{Builtin, BuiltinFn, BuiltinType},
   identifier::{Identifier, Name},
   keywords::Keyword,
   operators::{AssignOp, BinOp, Op, UnOp},
 };
+use crate::report::error::report_and_exit;
+use std::{collections::HashMap, path::PathBuf, sync::OnceLock};
 
 peg::parser! {
-  pub grammar lexer() for str {
+  grammar lexer() for str {
     rule comment() = quiet! {
       "//" [^ '\n']* "\n"? / "/**/" / "/*" (!"*/" [_])* "*/"
     } / expected!("Comment")
@@ -252,23 +252,26 @@ peg::parser! {
       assignop_div()
     } / expected!("Assignment Operator")
 
-    rule any() -> Token = quiet! {
-      literal_integer() /
-      literal_float() /
-      literal_character() /
-      literal_string() /
-      identifier() /
-      arrow() /
-      assignop() /
-      op() /
-      brackets() /
-      semicolon() /
-      separator() /
-      dot() /
-      comma() /
-      colon()
+    rule any() -> RawTokenMeta = quiet! {
+      start:position!() token:(
+        literal_integer() /
+        literal_float() /
+        literal_character() /
+        literal_string() /
+        identifier() /
+        arrow() /
+        assignop() /
+        op() /
+        brackets() /
+        semicolon() /
+        separator() /
+        dot() /
+        comma() /
+        colon()
+      )
+      end: position!() { RawTokenMeta { token, start, len: end - start } }
     } / expected!("Any Token")
-    pub rule lex() -> Vec<Token> = any()*
+    pub(super) rule lex() -> Vec<RawTokenMeta> = any()*
   }
 }
 
@@ -366,4 +369,120 @@ pub enum Token {
 
   Keyword(Keyword),
   Builtin(Builtin),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RawTokenMeta {
+  token: Token,
+  start: usize,
+  len: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TokenMeta {
+  pub token: Token,
+  pub line: usize,
+  pub column: usize,
+  pub len: usize,
+}
+
+pub struct Lexer;
+
+#[derive(Debug, Clone)]
+pub struct LexerError {
+  pub line: usize,
+  pub column: usize,
+  pub len: usize,
+}
+
+impl Lexer {
+  pub fn lex(&self, input: &str) -> Result<Vec<TokenMeta>, LexerError> {
+    let newlines = input
+      .char_indices()
+      .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
+      .collect::<Vec<_>>();
+
+    fn line_column(newlines: &[usize], start: usize) -> (usize, usize) {
+      let line = newlines
+        .iter()
+        .position(|&i| i > start)
+        .unwrap_or(newlines.len());
+      let column = newlines
+        .get(line.wrapping_sub(1))
+        .map(|&i| start - i)
+        .unwrap_or(start);
+      (line + 1, column)
+    }
+
+    match lexer::lex(input) {
+      Err(err) => {
+        let (line, column) = line_column(&newlines, err.location.offset);
+        Err(LexerError {
+          line,
+          column,
+          len: err.location.offset,
+        })
+      }
+      Ok(tokens) => Ok(
+        tokens
+          .into_iter()
+          .map(|rtm| {
+            let (line, column) = line_column(&newlines, rtm.start);
+            TokenMeta {
+              token: rtm.token,
+              line,
+              column,
+              len: rtm.len,
+            }
+          })
+          .collect(),
+      ),
+    }
+  }
+}
+
+impl LexerError {
+  pub fn report_and_exit(&self, path: &PathBuf, source: &str) -> ! {
+    let line = source.lines().nth(self.line - 1).unwrap();
+    report_and_exit(
+      line,
+      &path,
+      self.line,
+      self.column,
+      self.len,
+      "Unexpected token",
+      None,
+      1,
+    );
+  }
+}
+
+impl Token {
+  pub fn error_symbol(&self) -> &'static str {
+    match self {
+      Token::Separator => "space",
+      Token::LiteralBoolean(_) => "bool",
+      Token::LiteralInteger(_) => "int",
+      Token::LiteralFloat(_) => "float",
+      Token::LiteralCharacter(_) => "char",
+      Token::LiteralString(_) => "string",
+      Token::Identifier(_) => "identifier",
+      Token::ParenOpen => "(",
+      Token::ParenClose => ")",
+      Token::BraceOpen => "{",
+      Token::BraceClose => "}",
+      Token::BracketOpen => "[",
+      Token::BracketClose => "]",
+      Token::SemiColon => "semicolon",
+      Token::Dot => ".",
+      Token::Comma => ",",
+      Token::Colon => ":",
+      Token::Arrow => "->",
+      Token::Op(_) => "operator",
+      Token::AssignOp(_) => "assignment operator",
+      Token::Keyword(kwd) => kwd.error_symbol(),
+      Token::Builtin(Builtin::Fn(_)) => "builtin function",
+      Token::Builtin(Builtin::Type(_)) => "builtin type",
+    }
+  }
 }

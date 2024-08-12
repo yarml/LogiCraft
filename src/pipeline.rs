@@ -1,23 +1,18 @@
+use crate::{
+  grammar::{
+    lexer::Lexer,
+    parser::{NodeData, Node, Parser},
+  },
+  semantics::module::ModulePath,
+};
 use std::{
   collections::{HashMap, HashSet},
   fs,
   path::PathBuf,
 };
 
-use crate::{
-  grammar::{
-    lexer::lexer,
-    parser::{parser, Node},
-  },
-  semantics::module::ModulePath,
-};
-
 #[derive(Debug, Clone)]
-struct LoadContext {
-  // Modules scheduled to load before exiting the load stage
-  schedule: HashSet<ModulePath>,
-  loaded: HashMap<ModulePath, Vec<Node>>,
-}
+struct ModuleLoader;
 
 pub struct Pipeline {
   root: PathBuf,
@@ -29,14 +24,9 @@ impl Pipeline {
   }
 
   fn load(&self) -> HashMap<ModulePath, Vec<Node>> {
-    let mut context = LoadContext {
-      schedule: HashSet::new(),
-      loaded: HashMap::new(),
-    };
+    let loader = ModuleLoader;
 
-    context.load(&self.root, ModulePath::main());
-
-    context.loaded
+    loader.load(&self.root, ModulePath::main())
   }
 
   pub fn run(&self) {
@@ -44,20 +34,22 @@ impl Pipeline {
   }
 }
 
-impl LoadContext {
-  fn load(&mut self, root: &PathBuf, module: ModulePath) {
-    self.schedule.insert(module);
+impl ModuleLoader {
+  fn load(
+    &self,
+    root: &PathBuf,
+    module: ModulePath,
+  ) -> HashMap<ModulePath, Vec<Node>> {
+    let mut schedule = HashSet::from([module]);
+    let mut loaded = HashMap::new();
 
-    while !self.schedule.is_empty() {
-      let next = self.schedule.iter().next().unwrap().clone();
-      self.schedule.remove(&next);
+    while !schedule.is_empty() {
+      let next = schedule.iter().next().unwrap().clone();
+      schedule.remove(&next);
 
-      if self.loaded.contains_key(&next) {
+      if loaded.contains_key(&next) {
         continue;
       }
-
-      println!("Loading module: {}", next.to_string());
-
       let all_paths = next.paths(root.clone());
       let valid_paths: Vec<_> = all_paths
         .into_iter()
@@ -73,26 +65,33 @@ impl LoadContext {
         panic!("Ambiguous module {}", next.to_string());
       }
       let path = valid_paths[0].clone();
-
       let source = fs::read_to_string(&path)
         .expect(&format!("Could not read module: {:?}", path));
-      let tokens = lexer::lex(&source)
-        .expect(&format!("Could not lex module: {:?}", path));
-      let token_ref: Vec<_> = tokens.iter().map(|t| t).collect();
-      let nodes = parser::decl(&token_ref[..])
-        .expect(&format!("Could not parse module: {:?}", path));
+      let lexer = Lexer;
+      let parser = Parser;
+      let tokens = match lexer.lex(&source) {
+        Ok(tokens) => tokens,
+        Err(e) => e.report_and_exit(&path, &source),
+      };
+
+      let nodes = match parser.parse(&tokens) {
+        Ok(nodes) => nodes,
+        Err(e) => e.report_and_exit(&path, &source),
+      };
 
       for node in &nodes {
         println!("{:?}", node);
+        let node = node.data.clone();
         match node {
-          Node::ModDecl(name) => {
+          NodeData::ModDecl(name) => {
             let path = next.join(name.clone());
-            self.schedule.insert(path);
+            schedule.insert(path);
           }
           _ => {}
         }
       }
-      self.loaded.insert(next.clone(), nodes.clone());
+      loaded.insert(next.clone(), nodes.clone());
     }
+    loaded
   }
 }

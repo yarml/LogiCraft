@@ -1,50 +1,41 @@
-use super::location::Location;
+use colored::Colorize;
+use std::{path::PathBuf, process};
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ErrorContext {
-  messages: Vec<Message>,
-}
+pub fn report_and_exit(
+  line: &str,
+  file: &PathBuf,
+  line_num: usize,
+  column: usize,
+  len: usize,
+  message: &str,
+  details: Option<&str>,
+  ec: i32,
+) -> ! {
+  let line_num_str = format!("{}", line_num).cyan().bold();
+  let bar = "|".yellow();
+  let error_source =
+    format!("{file}:{line_num}:{column}:", file = file.to_string_lossy())
+      .yellow()
+      .bold();
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Message {
-  message: String,
-  message_type: MessageType,
-  location: Location,
-}
+  let column = column - 1;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum MessageType {
-  Warning,
-  Error,
-}
+  let line_pre_offending = &line[..column];
+  let line_offending = &line[column..column + len].red().bold();
+  let line_post_offending = &line[column + len..];
 
-impl ErrorContext {
-  pub fn new() -> Self {
-    ErrorContext {
-      messages: Vec::new(),
-    }
+  eprintln!("{error_source}");
+  eprintln!("{line_num_str:>4} {bar} {line_pre_offending}{line_offending}{line_post_offending}",);
+  eprintln!(
+    "{filler:>4} {bar} {filler:<column$}{arrow:~<len$} {message}",
+    filler = "",
+    arrow = "^".red().bold(),
+    message = message.red(),
+  );
+
+  if let Some(details) = details {
+    eprintln!("{}", details.bold());
   }
 
-  pub fn merge(&mut self, mut other: ErrorContext) {
-    self.messages.append(&mut other.messages);
-  }
-
-  pub fn add_message(&mut self, message: Message) {
-    self.messages.push(message);
-  }
-
-  pub fn add_error(&mut self, message: String, location: Location) {
-    self.add_message(Message {
-      message,
-      message_type: MessageType::Error,
-      location,
-    });
-  }
-  pub fn add_warning(&mut self, message: String, location: Location) {
-    self.add_message(Message {
-      message,
-      message_type: MessageType::Warning,
-      location,
-    });
-  }
+  process::exit(ec);
 }
