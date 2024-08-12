@@ -1,7 +1,10 @@
 use crate::{
   grammar::{
     lexer::Lexer,
-    parser::{Node, NodeData, Parser},
+    parser::{
+      ast::{Node, NodeData},
+      Parser,
+    },
   },
   semantics::module::ModulePath,
 };
