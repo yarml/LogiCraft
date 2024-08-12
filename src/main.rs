@@ -1,3 +1,5 @@
+#![feature(unboxed_closures, fn_traits)]
+
 mod control;
 mod format;
 mod grammar;

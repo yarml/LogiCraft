@@ -1,10 +1,7 @@
 use crate::{
   grammar::{
     lexer::Lexer,
-    parser::{
-      ast::{Node, NodeData},
-      Parser,
-    },
+    parser::{ast::Node, Parser},
   },
   semantics::module::ModulePath,
 };
@@ -84,9 +81,8 @@ impl ModuleLoader {
 
       for node in &nodes {
         println!("{:?}", node);
-        let node = node.data.clone();
         match node {
-          NodeData::ModDecl(name) => {
+          Node::ModDecl(name) => {
             let path = next.join(name.value.clone());
             schedule.insert(path);
           }

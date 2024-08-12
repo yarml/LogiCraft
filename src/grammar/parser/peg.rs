@@ -1,272 +1,187 @@
-use super::ast::{ExpressionNodeData, NodeData, RawExpressionNode, RawNode};
-use crate::grammar::{
-  builtins::Builtin,
-  identifier::{Identifier, Name, Type, TypedNameWithRawLineInfo},
-  keywords::Keyword,
-  lexer::token::Token,
-  operators::{AssignOp, Precedence},
+use super::ast::{Expression, Node, TypedName};
+use super::helper::LineInfoFn;
+use crate::{
+  grammar::{
+    builtins::Builtin,
+    identifier::{CallTarget, Identifier, Name, Type},
+    keywords::Keyword,
+    lexer::token::Token,
+    operators::{AssignOp, BinOp, Precedence, UnOp},
+  },
+  report::location::WithLineInfo,
 };
-use crate::report::location::WithRawLineInfo;
-use peg::parser;
 
-parser! {
-  pub grammar parser<'a>() for [&'a Token] {
-    rule name() -> WithRawLineInfo<Name> =
+peg::parser! {
+  pub grammar parser<'a>(line_info: &LineInfoFn) for [&'a Token] {
+    // Atoms which need to save line information
+    rule name() -> WithLineInfo<Name> =
       start:position!()
       [Token::Identifier(name) if name.is_singular()]
-      end:position!() {
-        WithRawLineInfo {
-          value: name.parts[0].clone(),
-          start: start,
-          len: end - start
-        }
-    };
-
-    rule identifier() -> WithRawLineInfo<Identifier> =
+      end:position!() { line_info.tag(name.parts[0].clone(), start, end) }
+    rule identifier() -> WithLineInfo<Identifier> =
       start:position!()
-      [Token::Identifier(id)] end:position!() {
-        WithRawLineInfo {
-          value: id.clone(),
-          start: start,
-          len: end - start
-        }
-      };
-
-    rule param_decl() -> TypedNameWithRawLineInfo =
-      name:name() [Token::Separator]? [Token::Colon] [Token::Separator]?
-      tp_start: position!()
-      tp:(
-        [Token::Identifier(t)] {
-          Type::Declared(t.clone())
-        } /
-        [Token::Builtin(Builtin::Type(t))] {
-          Type::Builtin(*t)
-        }
+      [Token::Identifier(name)]
+      end:position!() { line_info.tag(name.clone(), start, end) }
+    rule unop() -> WithLineInfo<UnOp> =
+      start:position!()
+      [Token::Op(op) if op.can_be_unary()]
+      end:position!() { line_info.tag(op.as_unary(), start, end) }
+    rule binop(precedence: Precedence) -> WithLineInfo<BinOp> =
+      start:position!()
+      [Token::Op(op) if op.binary_with(precedence)]
+      end:position!() { line_info.tag(op.as_binary(), start, end) }
+    rule assignop() -> WithLineInfo<AssignOp> =
+      start:position!()
+      [Token::AssignOp(op)]
+      end:position!() { line_info.tag(*op, start, end) }
+    rule call_target() -> WithLineInfo<CallTarget> =
+      start:position!()
+      target:(
+        [Token::Identifier(id)] { CallTarget::Declared(id.clone()) } /
+        [Token::Builtin(Builtin::Fn(bfn))] { CallTarget::Builtin(*bfn) }
       )
-      tp_end:position!() {
-        TypedNameWithRawLineInfo(
-          name,
-          WithRawLineInfo {
-            value: tp,
-            start: tp_start,
-            len: tp_end - tp_start
-          }
-        )
+      end:position!() { line_info.tag(target, start, end) }
+    rule atom_boolean() -> WithLineInfo<bool> =
+      start:position!()
+      [Token::LiteralBoolean(value)]
+      end:position!() { line_info.tag(*value, start, end) }
+    rule atom_integer() -> WithLineInfo<isize> =
+      start:position!()
+      [Token::LiteralInteger(value)]
+      end:position!() { line_info.tag(*value as isize, start, end) }
+    rule atom_float() -> WithLineInfo<f64> =
+      start:position!()
+      [Token::LiteralFloat(value)]
+      end:position!() { line_info.tag(*value, start, end) }
+    rule atom_string() -> WithLineInfo<String> =
+      start:position!()
+      [Token::LiteralString(value)]
+      end:position!() { line_info.tag(value.clone(), start, end) }
+    rule ttype() -> WithLineInfo<Type> =
+      start:position!()
+      t:(
+        [Token::Identifier(ttype)] { Type::Declared(ttype.clone()) } /
+        [Token::Builtin(Builtin::Type(btype))] { Type::Builtin(*btype) }
+      )
+      end:position!() { line_info.tag(t, start, end) }
+
+    // Separators
+    rule _() = [Token::Separator]
+    rule param_sep() = _? [Token::Comma] _?
+    rule stmt_sep() = _? [Token::SemiColon] _?
+
+    // Simpletons: simple composites of atoms
+    rule typed_name() -> TypedName =
+      name:name() _?
+      [Token::Colon] _?
+      ttype:ttype() {
+        TypedName {
+          name: name,
+          ttype: ttype,
+        }
       }
-    rule param_sep() = [Token::Separator]? [Token::Comma] [Token::Separator]?
-    rule params_decl() -> Vec<TypedNameWithRawLineInfo> =
-      p:(
-        param_decl() ** param_sep()
-      ) param_sep()? { p }
 
-    rule params() -> Vec<RawExpressionNode> =
-      p:(
-        expression() ** param_sep()
-      ) param_sep()? { p }
+    rule return_spec() -> WithLineInfo<Type> =
+      [Token::Arrow] _? ttype:ttype() { ttype }
 
-    rule _() = [Token::Separator]?
+    // Sequences: things that repeat
+    rule params_decl() -> Vec<TypedName> =
+      d:(typed_name() ** param_sep()) param_sep()? { d }
+    rule fields_decl() -> Vec<TypedName> =
+      d:(typed_name() ** param_sep()) param_sep()? { d }
+    rule expression_seq() -> Vec<Expression> =
+      e:(expression() ** param_sep()) param_sep()? { e }
 
-    #[cache_left_rec]
-    rule expression() -> RawExpressionNode =
-      start:position!()
-      data:precedence! {
-          x:expression() _ [Token::Op(op) if op.binary_with(Precedence::Lowest)] _ y:expression() {
-            ExpressionNodeData::BinOp(Box::new(x), op.as_binary(), Box::new(y))
-          }
-          --
-          x:expression() _ [Token::Op(op) if op.binary_with(Precedence::Low)] _ y:expression() {
-            ExpressionNodeData::BinOp(Box::new(x), op.as_binary(), Box::new(y))
-          }
-          --
-          x:expression() _ [Token::Op(op) if op.binary_with(Precedence::High)] _ y:expression() {
-            ExpressionNodeData::BinOp(Box::new(x), op.as_binary(), Box::new(y))
-          }
-          --
-          [Token::Op(op) if op.can_be_unary()] _ x:expression() {
-            ExpressionNodeData::<RawExpressionNode>::UnOp(op.as_unary(), Box::new(x))
-          }
-          --
-          [Token::LiteralInteger(i)] { ExpressionNodeData::AtomInteger(*i as isize) }
-          [Token::LiteralFloat(f)] { ExpressionNodeData::AtomFloat(*f) }
-          [Token::LiteralBoolean(b)] { ExpressionNodeData::AtomBoolean(*b) }
-          [Token::LiteralString(s)] { ExpressionNodeData::AtomString(s.clone()) }
-          [Token::Identifier(name)] { ExpressionNodeData::AtomIdentifier(name.clone()) }
-          en:(
-            [Token::Builtin(Builtin::Fn(b))] _
-            [Token::ParenOpen] _
-            args:params() _
-            [Token::ParenClose] _ { ExpressionNodeData::BuiltinCall(*b, args) }
-          ) { en }
-          en:(
-            [Token::Identifier(name)] _
-            [Token::ParenOpen] _
-            args:params() _
-            [Token::ParenClose] _ {
-              ExpressionNodeData::FunctionCall(name.clone(), args)
-            }
-          ) { en }
-          [Token::ParenOpen] _ x:expression()  _ [Token::ParenClose] { x.data }
+    // Expression: This beast has a section for itself
+    rule expression() -> Expression = precedence! {
+      x:(@) _? op:binop(Precedence::Lowest) _? y:@ {
+        Expression::BinOp(x.into(), op, y.into())
       }
-      end:position!() {
-        RawExpressionNode {
-          data: data,
-          start: start,
-          len: end - start
-        }
-      };
+      --
+      x:(@) _? op:binop(Precedence::Low) _? y:@ {
+        Expression::BinOp(x.into(), op, y.into())
+      }
+      --
+      x:(@) _? op:binop(Precedence::High) _? y:@ {
+        Expression::BinOp(x.into(), op, y.into())
+      }
+      --
+      op:unop() _? x:@ { Expression::UnOp(op, x.into()) }
+      --
+      atom:atom_boolean() { Expression::AtomBoolean(atom) }
+      atom:atom_integer() { Expression::AtomInteger(atom) }
+      atom:atom_float() { Expression::AtomFloat(atom) }
+      atom:atom_string() { Expression::AtomString(atom) }
+      atom:identifier() { Expression::AtomIdentifier(atom) }
+      --
+      target:call_target() _? [Token::ParenOpen] _? args:expression_seq() _? [Token::ParenClose] {
+        Expression::Call(target, args)
+      }
+      --
+      [Token::ParenOpen] _? x:expression() _? [Token::ParenClose] { x }
+    }
 
-    rule assignop() -> WithRawLineInfo<AssignOp> =
-      start:position!()
-      [Token::AssignOp(op)] end:position!() {
-        WithRawLineInfo {
-          value: *op,
-          start: start,
-          len: end - start
-        }
-      };
+    // Statements
+    rule var_decl() -> Node =
+      [Token::Keyword(Keyword::Let)] _
+      name:name() _?
+      [Token::AssignOp(AssignOp::Identity)] _?
+      value:expression() {
+        Node::VarDecl(name, None, value)
+      }
 
-    rule assignment() -> RawNode =
-      start:position!()
-      id:identifier() [Token::Separator]?
-      op:assignop() [Token::Separator]?
-      e:expression()
-      end:position!() {
-        RawNode {
-          data: NodeData::Assignment(id, op, e),
-          start: start,
-          len: end - start
-        }
-      };
-    rule var_decl() -> RawNode =
-      start:position!()
-        [Token::Keyword(Keyword::Let)] [Token::Separator]
-        name:name() [Token::Separator]?
-        type_info:([Token::Colon] [Token::Separator]?
-          tp_start:position!()
-          tn:(
-            [Token::Identifier(t)] {
-              Type::Declared(t.clone())
-            } /
-            [Token::Builtin(Builtin::Type(t))] {
-              Type::Builtin(*t)
-            }
-          )?
-          tp_end:position!() {
-            (tn, tp_start, tp_end)
-          }
-        ) [Token::Separator]?
-        [Token::AssignOp(AssignOp::Identity)] [Token::Separator]?
-        e:expression()
-        end:position!() {
-          let (tn, tp_start, tp_end) = type_info;
-          RawNode {
-            data: NodeData::VarDecl(
-              tn.map(|t| TypedNameWithRawLineInfo(
-                  name,
-                  WithRawLineInfo {
-                    value: t,
-                    start: tp_start,
-                    len: tp_end - tp_start
-                  }
-                )),
-              e),
-            start: start,
-            len: end - start
-          }
-        };
+    rule assignment() -> Node =
+      target:identifier() _?
+      op:assignop() _?
+      value:expression() {
+        Node::Assignment(target, op, value)
+      }
 
-    rule statement() -> RawNode =
-      start:position!() e:expression() end:position!() {
-        RawNode {
-          data: NodeData::Expression(e),
-          start,
-          len: end - start,
-        }
-      } /
-      assignment() /
-      var_decl()
+    rule statement() -> Node =
+      e:expression() { Node::Expression(e) } /
+      var_decl() /
+      assignment()
 
-    rule statement_sep() =
-      [Token::Separator]? [Token::SemiColon] [Token::Separator]?
+    rule statement_seq() -> Vec<Node> =
+      s:(statement() ** stmt_sep()) stmt_sep()? { s }
 
-    rule statements() -> Vec<RawNode> =
-      s:(
-        statement() ** statement_sep()
-      ) statement_sep()? { s }
+    // global declarations
+    rule glob_fn_decl() -> Node =
+      [Token::Keyword(Keyword::Fn)] _
+      name:name() _?
+      [Token::ParenOpen] _?
+      params:params_decl() _?
+      [Token::ParenClose] _?
+      return_type:return_spec()? _?
+      [Token::BraceOpen] _?
+      body:statement_seq() _?
+      [Token::BraceClose] {
+        Node::FnDecl(name, params, return_type, body)
+      }
 
-    rule global_fn_decl() -> RawNode =
-      start:position!()
-      [Token::Keyword(Keyword::Fn)] [Token::Separator]
-      name:name() [Token::Separator]?
-      [Token::ParenOpen] [Token::Separator]?
-      params:params_decl() [Token::Separator]?
-      [Token::ParenClose] [Token::Separator]?
-      ret_type:(
-        [Token::Arrow] [Token::Separator]? start:position!() t:(
-          [Token::Identifier(t)] { Type::Declared(t.clone()) } /
-          [Token::Builtin(Builtin::Type(t))] { Type::Builtin(*t) }
-        ) end:position!() [Token::Separator]? {
-          WithRawLineInfo {
-            value: t,
-            start,
-            len: end-start
-          }
-        }
-      )?
-      [Token::BraceOpen] [Token::Separator]?
-      stmts:statements() [Token::Separator]?
-      [Token::BraceClose]
-      end:position!() {
-        RawNode {
-          data: NodeData::FnDecl(
-            name,
-            params,
-            ret_type,
-            stmts
-          ),
-          start: start,
-          len: end - start
-        }
-      };
+    rule glob_var_decl() -> Node = d:var_decl() stmt_sep() { d }
 
-    rule global_var_decl() -> RawNode =
-      d:var_decl() statement_sep() { d };
+    rule glob_mod_decl() -> Node =
+      [Token::Keyword(Keyword::Mod)] _
+      name:name() stmt_sep() {
+        Node::ModDecl(name)
+      }
 
-    rule global_mod_decl() -> RawNode =
-      start:position!()
-      [Token::Keyword(Keyword::Mod)] [Token::Separator]
-      name:name() statement_sep()
-      end:position!() {
-        RawNode {
-          data: NodeData::ModDecl(name),
-          start,
-          len: end - start,
-        }
-      };
+    rule glob_struct_decl() -> Node =
+      [Token::Keyword(Keyword::Struct)] _
+      name:name() _?
+      [Token::BraceOpen] _?
+      fields:fields_decl() _?
+      [Token::BraceClose] {
+        Node::StructDecl(name, fields)
+      }
 
-    rule global_struct_decl() -> RawNode =
-      start:position!()
-      [Token::Keyword(Keyword::Struct)] [Token::Separator]
-      name:name() [Token::Separator]?
-      [Token::BraceOpen] [Token::Separator]?
-      fields:params_decl() [Token::Separator]?
-      [Token::BraceClose]
-      end:position!() {
-        RawNode {
-          data: NodeData::StructDecl(name, fields),
-          start,
-          len: end - start,
-        }
-      };
+    rule global_decl() -> Node =
+      glob_fn_decl() /
+      glob_var_decl() /
+      glob_mod_decl() /
+      glob_struct_decl()
 
-    rule decl() -> RawNode =
-      global_fn_decl() /
-      global_var_decl() /
-      global_mod_decl() /
-      global_struct_decl()
-    ;
-
-    pub rule decls() -> Vec<RawNode> =
-      decl() ** ([Token::Separator]?)
+    pub rule global_decl_seq() -> Vec<Node> = global_decl()*
   }
 }

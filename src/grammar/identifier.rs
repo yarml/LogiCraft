@@ -1,6 +1,4 @@
-use crate::report::location::{WithLineInfo, WithRawLineInfo};
-
-use super::builtins::BuiltinType;
+use super::builtins::{BuiltinFn, BuiltinType};
 
 pub type Name = String;
 
@@ -17,16 +15,10 @@ pub enum Type {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TypedNameWithRawLineInfo(
-  pub WithRawLineInfo<Name>,
-  pub WithRawLineInfo<Type>,
-);
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TypedNameWithLineInfo(
-  pub WithLineInfo<Name>,
-  pub WithLineInfo<Type>,
-);
+pub enum CallTarget {
+  Builtin(BuiltinFn),
+  Declared(Identifier),
+}
 
 impl Identifier {
   pub fn is_singular(&self) -> bool {
