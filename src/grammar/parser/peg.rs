@@ -1,4 +1,4 @@
-use super::ast::{Expression, Node, TypedName};
+use super::ast::{Expression, Node, OptionalTypedName, TypedName};
 use super::helper::LineInfoFn;
 use crate::{
   grammar::{
@@ -125,9 +125,10 @@ peg::parser! {
     rule var_decl() -> Node =
       [Token::Keyword(Keyword::Let)] _
       name:name() _?
+      typ:([Token::Colon] _? typ:typ() { typ })? _?
       [Token::AssignOp(AssignOp::Identity)] _?
       value:expression() {
-        Node::VarDecl(name, None, value)
+        Node::VarDecl(OptionalTypedName { name, typ }, value)
       }
 
     rule assignment() -> Node =
