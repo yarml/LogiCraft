@@ -182,6 +182,6 @@ peg::parser! {
       glob_mod_decl() /
       glob_struct_decl()
 
-    pub rule global_decl_seq() -> Vec<Node> = global_decl()*
+    pub rule global_decl_seq() -> Vec<Node> = d:global_decl() ** (_?) _? { d }
   }
 }
