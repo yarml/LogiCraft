@@ -57,10 +57,10 @@ peg::parser! {
       start:position!()
       [Token::LiteralString(value)]
       end:position!() { line_info.tag(value.clone(), start, end) }
-    rule ttype() -> WithLineInfo<Type> =
+    rule typ() -> WithLineInfo<Type> =
       start:position!()
       t:(
-        [Token::Identifier(ttype)] { Type::Declared(ttype.clone()) } /
+        [Token::Identifier(typ)] { Type::Declared(typ.clone()) } /
         [Token::Builtin(Builtin::Type(btype))] { Type::Builtin(*btype) }
       )
       end:position!() { line_info.tag(t, start, end) }
@@ -74,15 +74,15 @@ peg::parser! {
     rule typed_name() -> TypedName =
       name:name() _?
       [Token::Colon] _?
-      ttype:ttype() {
+      typ:typ() {
         TypedName {
           name: name,
-          ttype: ttype,
+          typ: typ,
         }
       }
 
     rule return_spec() -> WithLineInfo<Type> =
-      [Token::Arrow] _? ttype:ttype() { ttype }
+      [Token::Arrow] _? typ:typ() { typ }
 
     // Sequences: things that repeat
     rule params_decl() -> Vec<TypedName> =

@@ -22,7 +22,7 @@ impl Parser {
     peg::parser::global_decl_seq(&tokens_ref, &line_info).map_err(|e| {
       ParserError {
         line: tokens[e.location].line,
-        column: tokens[e.location].column,
+        column: tokens[e.location].column - 1,
         len: tokens[e.location].len,
         unexpected: tokens[e.location].value.clone(),
         expected: e.expected,

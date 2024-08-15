@@ -32,13 +32,10 @@ impl Lexer {
       (line + 1, column, len)
     };
 
-    peg::lexer::lex(input, &line_info).map_err(|err| {
-      let (line, column, _) = line_info(err.location.offset, 0);
-      LexerError {
-        line,
-        column,
-        len: err.location.offset,
-      }
+    peg::lexer::lex(input, &line_info).map_err(|err| LexerError {
+      line: err.location.line,
+      column: err.location.column - 1,
+      len: 2,
     })
   }
 }

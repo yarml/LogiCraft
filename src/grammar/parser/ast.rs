@@ -9,7 +9,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedName {
   pub name: WithLineInfo<Name>,
-  pub ttype: WithLineInfo<Type>,
+  pub typ: WithLineInfo<Type>,
 }
 
 #[derive(Debug, Clone)]

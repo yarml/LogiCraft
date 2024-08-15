@@ -1,8 +1,6 @@
-use crate::{
-  grammar::{
-    lexer::Lexer,
-    parser::{ast::Node, Parser},
-  },
+use crate::grammar::{
+  lexer::Lexer,
+  parser::{ast::Node, Parser},
   semantics::module::ModulePath,
 };
 use std::{
@@ -71,12 +69,12 @@ impl ModuleLoader {
       let parser = Parser;
       let tokens = match lexer.lex(&source) {
         Ok(tokens) => tokens,
-        Err(e) => e.report_and_exit(&path, &source),
+        Err(e) => e.get_report(&path, &source).report_and_exit(1),
       };
 
       let nodes = match parser.parse(&tokens) {
         Ok(nodes) => nodes,
-        Err(e) => e.report_and_exit(&path, &source),
+        Err(e) => e.get_report(&path, &source).report_and_exit(1),
       };
 
       for node in &nodes {

@@ -3,7 +3,6 @@ mod format;
 mod grammar;
 mod output;
 mod pipeline;
-mod semantics;
 mod report;
 
 use control::cli::{getargs, OutputType};
