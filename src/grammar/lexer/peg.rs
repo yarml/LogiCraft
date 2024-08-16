@@ -1,12 +1,16 @@
+use super::helper::LineInfoFn;
 use super::helper::{
   parse_identifier, parse_literal_float, parse_literal_integer,
 };
 use super::Token;
-use crate::grammar::operators::{AssignOp, BinOp, Op, UnOp};
+use crate::grammar::{
+  identifier::Name,
+  operators::{AssignOp, BinOp, Op, UnOp},
+};
 use crate::report::location::WithLineInfo;
 
 peg::parser! {
-  pub(super) grammar lexer() for str {
+  pub(super) grammar lexer(line_info: &LineInfoFn) for str {
     rule comment() = "//" [^ '\n']* "\n"? / "/**/" / "/*" (!"*/" [_])* "*/"
     rule whitespace() =
       (" " / "\t" / "\n" / "\r" /
@@ -15,12 +19,13 @@ peg::parser! {
     rule separator() -> Token =
       whitespace() (comment() / whitespace())* { Token::Separator }
 
-    rule paren_open() -> Token ="(" { Token::ParenOpen }
-    rule paren_close() -> Token =")" { Token::ParenClose }
-    rule brace_open() -> Token ="{" { Token::BraceOpen }
-    rule brace_close() -> Token ="}" { Token::BraceClose }
-    rule bracket_open() -> Token ="[" { Token::BracketOpen }
-    rule bracket_close() -> Token ="]" { Token::BracketClose }
+    rule hash() -> Token = "#" { Token::Hash }
+    rule paren_open() -> Token = "(" { Token::ParenOpen }
+    rule paren_close() -> Token = ")" { Token::ParenClose }
+    rule brace_open() -> Token = "{" { Token::BraceOpen }
+    rule brace_close() -> Token = "}" { Token::BraceClose }
+    rule bracket_open() -> Token = "[" { Token::BracketOpen }
+    rule bracket_close() -> Token = "]" { Token::BracketClose }
 
     rule brackets() -> Token =
       paren_open() /
@@ -105,10 +110,14 @@ rule digit_bin() -> u64 = d:$(['0'..='1']) { d.parse().unwrap() }    rule digit_
         )*
       ) "\"" { Token::LiteralString(s.iter().collect()) }
 
-    rule identifier_part() -> String =
+    rule identifier_part() -> WithLineInfo<Name> =
+      start:position!()
       idp:$(
         ['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '_' | '0'..='9']*
-      ) { idp.into() }
+      )
+      end:position!() {
+        line_info.tag(idp.into(), start, end)
+      }
     rule identifier() -> Token =
       root:$("::"?) parts:(identifier_part() ++ "::") {?
         parse_identifier(root == "::", parts)
@@ -173,8 +182,7 @@ rule digit_bin() -> u64 = d:$(['0'..='1']) { d.parse().unwrap() }    rule digit_
       assignop_div()
 
 
-    rule any<F>(line_info: F) -> WithLineInfo<Token>
-      where F: Fn(usize, usize) -> (usize, usize, usize) =
+    rule any() -> WithLineInfo<Token> =
       start:position!() token:(
         literal_integer() /
         literal_float() /
@@ -189,20 +197,12 @@ rule digit_bin() -> u64 = d:$(['0'..='1']) { d.parse().unwrap() }    rule digit_
         separator() /
         dot() /
         comma() /
-        colon()
+        colon() /
+        hash()
       )
-      end: position!() {
-        let (line, column, len) = line_info(start, end);
-        WithLineInfo {
-          value: token,
-          line,
-          column,
-          len,
-        }
-      }
+      end:position!() { line_info.tag(token, start, end) }
 
-    pub rule lex<F>(line_info: &F) -> Vec<WithLineInfo<Token>>
-      where F: Fn(usize, usize) -> (usize, usize, usize) =
-        any(&line_info)*
+    pub rule lex() -> Vec<WithLineInfo<Token>> =
+        any()*
   }
 }

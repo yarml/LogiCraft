@@ -17,6 +17,7 @@ pub enum Token {
 
   Identifier(Identifier),
 
+  Hash,
   ParenOpen,
   ParenClose,
   BraceOpen,
@@ -47,6 +48,7 @@ impl Token {
       Token::LiteralCharacter(_) => "char",
       Token::LiteralString(_) => "string",
       Token::Identifier(_) => "identifier",
+      Token::Hash => "#",
       Token::ParenOpen => "(",
       Token::ParenClose => ")",
       Token::BraceOpen => "{",

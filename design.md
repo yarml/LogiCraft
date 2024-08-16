@@ -1,17 +1,25 @@
-# Registers
+# ISA
+## Registers
 A scoreboard objective called "registers" contains all registers. Scoreboard are perfect since
 mathematical operations can be done between them in an x86 style (first source operand is also destination).
-Registers are named T<1..6>, S<1..6>. For a total of 12 registers. The calling convention specifies how these registers should be used.
+Registers are named T<0..5>, S<0..5>. For a total of 16 registers. The calling convention specifies how these registers should be used.
 
-# Global Storage
-Configuration data that can be shared among multiple Logicraft datapacks can be found in the data storage `lc:config`.
+## Data Location
+Data location is the closest thing we have to a pointer in real computers, it consists of a storage name, and a path.
+Datapacks normally only access data in their stack frame, or their local storage, however accessing arbitrary data is
+also possible.
 
-Management data that can be shared among multiple Logicraft datapacks can be found in the data storage `lc:data`
+### Global Storage
+Configuration that can be shared among multiple Logicraft datapacks can be found in the data storage `lc:config`.
 
-# Local Storage
-Management data of any datapack will be stored in the data storage `lc:data/<datapackid>`
+Data that can be shared among multiple Logicraft datapacks can be found in the data storage `lc:data`
 
-# Stack
+### Local Storage
+Configuration of any datapack will be stored in the data storage `lc:config/<datapackid>`
+
+Data of any datapack will be stored in the data storage `lc:data/<datapackid>`
+
+### Stack
 The stack is represented as a field `frames:[]` in the global storage, which is an array.
 It is put in the global storage to allow for future expansions to Logicraft allowing cross datapack calls.
 On each function call we prepend the array with an object of the form `{locals:[[]],fname:"...",source:"..."}`.
@@ -19,12 +27,20 @@ The layout of `locals` is determined on the fly at compile time.
 
 On function exit we remove the first item in the array and return.
 
+## Instructions
+- Add Register, Register
+- Sub Register, Register
+- Mul Register, Register
+- Div Register, Register
+- Mod Register, Register
+- Tell DataLocation
+
 # Calling convention
 ## Registers
-| Category | Function          | Saved by |
-| -------- | ----------------- | -------- |
-| T        | Temporaries       | Caller   |
-| S        | Temporaries       | Callee   |
+| Category | Function    | Saved by |
+| -------- | ----------- | -------- |
+| T        | Temporaries | Caller   |
+| S        | Temporaries | Callee   |
 
 ## Call Storage
 Function call storage that is used to pass other parameters is found in the global management storage as a field `params:[[]]`.

@@ -19,10 +19,10 @@ impl Parser {
     let tokens_ref = tokens.iter().map(|tm| &tm.value).collect::<Vec<_>>();
     let line_info = LineInfoFn::new(tokens);
 
-    peg::parser::global_decl_seq(&tokens_ref, &line_info).map_err(|e| {
+    peg::parser::glob_decl_seq(&tokens_ref, &line_info).map_err(|e| {
       ParserError {
         line: tokens[e.location].line,
-        column: tokens[e.location].column - 1,
+        column: tokens[e.location].column,
         len: tokens[e.location].len,
         unexpected: tokens[e.location].value.clone(),
         expected: e.expected,

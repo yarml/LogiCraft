@@ -17,11 +17,7 @@ peg::parser! {
     rule name() -> WithLineInfo<Name> =
       start:position!()
       [Token::Identifier(name) if name.is_singular()]
-      end:position!() { line_info.tag(name.parts[0].clone(), start, end) }
-    rule identifier() -> WithLineInfo<Identifier> =
-      start:position!()
-      [Token::Identifier(name)]
-      end:position!() { line_info.tag(name.clone(), start, end) }
+      end:position!() { line_info.tag(name.parts[0].value.clone(), start, end) }
     rule unop() -> WithLineInfo<UnOp> =
       start:position!()
       [Token::Op(op) if op.can_be_unary()]
@@ -64,7 +60,8 @@ peg::parser! {
         [Token::Builtin(Builtin::Type(btype))] { Type::Builtin(*btype) }
       )
       end:position!() { line_info.tag(t, start, end) }
-
+    // Passthrough lexer
+    rule identifier() -> Identifier = [Token::Identifier(name)] { name.clone() }
     // Separators
     rule _() = [Token::Separator]
     rule param_sep() = _? [Token::Comma] _?
@@ -127,15 +124,15 @@ peg::parser! {
       name:name() _?
       typ:([Token::Colon] _? typ:typ() { typ })? _?
       [Token::AssignOp(AssignOp::Identity)] _?
-      value:expression() {
-        Node::VarDecl(OptionalTypedName { name, typ }, value)
+      val:expression() {
+        Node::VarDecl{ typ: OptionalTypedName { name, typ }, val }
       }
 
     rule assignment() -> Node =
       target:identifier() _?
       op:assignop() _?
-      value:expression() {
-        Node::Assignment(target, op, value)
+      val:expression() {
+        Node::Assignment { target, op, val }
       }
 
     rule statement() -> Node =
@@ -146,18 +143,26 @@ peg::parser! {
     rule statement_seq() -> Vec<Node> =
       s:(statement() ** stmt_sep()) stmt_sep()? { s }
 
+    // Tags
+    rule attribute() -> WithLineInfo<Name> =
+      [Token::Hash] [Token::BracketOpen] _?
+      name:name() _?
+      [Token::BracketClose] { name }
+    rule attributes() -> Vec<WithLineInfo<Name>> = t:attribute() ** (_) _ { t }
+
     // global declarations
     rule glob_fn_decl() -> Node =
+      attributes:attributes()
       [Token::Keyword(Keyword::Fn)] _
       name:name() _?
       [Token::ParenOpen] _?
       params:params_decl() _?
       [Token::ParenClose] _?
-      return_type:return_spec()? _?
+      ret_type:return_spec()? _?
       [Token::BraceOpen] _?
       body:statement_seq() _?
       [Token::BraceClose] {
-        Node::FnDecl(name, params, return_type, body)
+        Node::FnDecl { attributes, name, params, ret_type, body }
       }
 
     rule glob_var_decl() -> Node = d:var_decl() stmt_sep() { d }
@@ -167,6 +172,11 @@ peg::parser! {
       name:name() stmt_sep() {
         Node::ModDecl(name)
       }
+    rule glob_use_decl() -> Node =
+      [Token::Keyword(Keyword::Use)] _
+      id:identifier() stmt_sep() {
+        Node::UseDecl(id)
+      }
 
     rule glob_struct_decl() -> Node =
       [Token::Keyword(Keyword::Struct)] _
@@ -174,15 +184,16 @@ peg::parser! {
       [Token::BraceOpen] _?
       fields:fields_decl() _?
       [Token::BraceClose] {
-        Node::StructDecl(name, fields)
+        Node::StructDecl { name, fields }
       }
 
-    rule global_decl() -> Node =
+    rule glob_decl() -> Node =
       glob_fn_decl() /
       glob_var_decl() /
       glob_mod_decl() /
-      glob_struct_decl()
+      glob_struct_decl() /
+      glob_use_decl()
 
-    pub rule global_decl_seq() -> Vec<Node> = d:global_decl() ** (_?) _? { d }
+    pub rule glob_decl_seq() -> Vec<Node> = _? d:glob_decl() ** (_?) _? { d }
   }
 }

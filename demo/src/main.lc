@@ -1,4 +1,5 @@
+
+#[export]
 fn test() {
   println(1 + 1);
-  a: bool;
 }

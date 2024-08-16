@@ -1,3 +1,5 @@
+use crate::report::location::WithLineInfo;
+
 use super::builtins::{BuiltinFn, BuiltinType};
 
 pub type Name = String;
@@ -5,7 +7,7 @@ pub type Name = String;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Identifier {
   pub root: bool,
-  pub parts: Vec<Name>,
+  pub parts: Vec<WithLineInfo<Name>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,8 +1,11 @@
 use super::token::Token;
-use crate::grammar::{
-  builtins::{Builtin, BuiltinFn, BuiltinType},
-  identifier::{Identifier, Name},
-  keywords::Keyword,
+use crate::{
+  grammar::{
+    builtins::{Builtin, BuiltinFn, BuiltinType},
+    identifier::{Identifier, Name},
+    keywords::Keyword,
+  },
+  report::location::WithLineInfo,
 };
 use std::{collections::HashMap, sync::OnceLock};
 
@@ -19,11 +22,11 @@ pub fn parse_literal_float(literal: &str) -> Result<Token, &'static str> {
 }
 pub fn parse_identifier(
   root: bool,
-  parts: Vec<Name>,
+  parts: Vec<WithLineInfo<Name>>,
 ) -> Result<Token, &'static str> {
   let kw = parts.iter().find_map(|part| {
     let kws = keywords();
-    if let Some(token) = kws.get(part.as_str()) {
+    if let Some(token) = kws.get(part.value.as_str()) {
       Some(token.clone())
     } else {
       None
@@ -49,6 +52,7 @@ pub fn keywords() -> &'static HashMap<&'static str, Token> {
     map.insert("false", Token::LiteralBoolean(false));
 
     map.insert("mod", Token::Keyword(Keyword::Mod));
+    map.insert("use", Token::Keyword(Keyword::Use));
     map.insert("fn", Token::Keyword(Keyword::Fn));
     map.insert("let", Token::Keyword(Keyword::Let));
     map.insert("if", Token::Keyword(Keyword::If));
@@ -68,4 +72,39 @@ pub fn keywords() -> &'static HashMap<&'static str, Token> {
 
     map
   })
+}
+
+pub struct LineInfoFn {
+  newlines: Vec<usize>,
+}
+
+impl LineInfoFn {
+  pub fn new(source: &str) -> Self {
+    let newlines = source
+      .char_indices()
+      .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
+      .collect::<Vec<_>>();
+    Self { newlines }
+  }
+
+  pub fn tag<T>(&self, value: T, start: usize, end: usize) -> WithLineInfo<T> {
+    let len = end - start;
+    let line = self
+      .newlines
+      .iter()
+      .position(|&i| i > start)
+      .unwrap_or(self.newlines.len())
+      + 1;
+    let column = self
+      .newlines
+      .get(line.wrapping_sub(2))
+      .map(|&i| start - i)
+      .unwrap_or(start);
+    WithLineInfo {
+      value,
+      line,
+      column,
+      len,
+    }
+  }
 }
