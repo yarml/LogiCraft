@@ -3,7 +3,7 @@ pub mod line;
 
 use colored::{Color, Colorize};
 use line::HighlightedLine;
-use std::{error::Error, io, path::PathBuf, process};
+use std::{io, path::PathBuf, process};
 
 #[derive(Debug, Clone)]
 pub struct Message {

@@ -134,14 +134,20 @@ peg::parser! {
       val:expression() {
         Node::Assignment { target, op, val }
       }
+    rule ret() -> Node =
+      [Token::Keyword(Keyword::Ret)] _
+      val:expression() {
+        Node::Return(val)
+      }
 
     rule statement() -> Node =
       e:expression() { Node::Expression(e) } /
       var_decl() /
-      assignment()
+      assignment() /
+      ret()
 
     rule statement_seq() -> Vec<Node> =
-      s:(statement() ** stmt_sep()) stmt_sep()? { s }
+      s:(statement() ** stmt_sep()) stmt_sep() { s }
 
     // Tags
     rule attribute() -> WithLineInfo<Name> =

@@ -51,6 +51,7 @@ pub enum Node {
     ret_type: Option<WithLineInfo<Type>>,
     body: Vec<Node>,
   },
+  Return(Expression),
   ModDecl(WithLineInfo<Name>),
   UseDecl(Identifier),
   StructDecl {
