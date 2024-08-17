@@ -105,15 +105,15 @@ peg::parser! {
       --
       op:unop() _? x:@ { Expression::UnOp(op, x.into()) }
       --
+      target:call_target() _? [Token::ParenOpen] _? args:expression_seq() _? [Token::ParenClose] {
+        Expression::Call(target, args)
+      }
+      --
       atom:atom_boolean() { Expression::AtomBoolean(atom) }
       atom:atom_integer() { Expression::AtomInteger(atom) }
       atom:atom_float() { Expression::AtomFloat(atom) }
       atom:atom_string() { Expression::AtomString(atom) }
       atom:identifier() { Expression::AtomIdentifier(atom) }
-      --
-      target:call_target() _? [Token::ParenOpen] _? args:expression_seq() _? [Token::ParenClose] {
-        Expression::Call(target, args)
-      }
       --
       [Token::ParenOpen] _? x:expression() _? [Token::ParenClose] { x }
     }
