@@ -1,6 +1,8 @@
 use colored::{Color, ColoredString, Colorize};
 use std::collections::{HashMap, HashSet};
 
+use super::Message;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HighlightType {
   Suggestion,
@@ -300,10 +302,12 @@ impl FinalizeCache {
       *next
     } else {
       displayed_values.clear();
-      *possible_values
-        .iter()
-        .next()
-        .expect("next_pipe cannot operate on empty set of possibilities")
+      *possible_values.iter().next().unwrap_or_else(|| {
+        Message::compiler_bug(
+          "next_pipe cannot operate on empty set of possibilities",
+        )
+        .report_and_exit(1)
+      })
     }
   }
 }

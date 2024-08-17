@@ -1,3 +1,5 @@
+use crate::report::message::Message;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnOp {
   Not,
@@ -61,7 +63,8 @@ impl Op {
       Op::Un(op) => *op,
       Op::RawAdd => UnOp::Identity,
       Op::RawSub => UnOp::Negate,
-      _ => panic!("Cannot convert binary operator to unary"),
+      _ => Message::compiler_bug("Cannot convert binary operator to unary")
+        .report_and_exit(1),
     }
   }
 
@@ -79,7 +82,8 @@ impl Op {
       Op::Bin(op) => *op,
       Op::RawAdd => BinOp::Add,
       Op::RawSub => BinOp::Sub,
-      _ => panic!("Cannot convert unary operator to binary"),
+      _ => Message::compiler_bug("Cannot convert unary operator to binary")
+        .report_and_exit(1),
     }
   }
 

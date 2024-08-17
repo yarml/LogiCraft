@@ -52,7 +52,13 @@ fn main() {
 
   let pack_content =
     serde_json::to_string_pretty(&PackMeta::new(&config.datapack.description))
-      .expect("Could not serialize pack.mcmeta");
+      .unwrap_or_else(|err| {
+        Message::compiler_bug(&format!(
+          "Error while trying to generate `pack.mcmeta`: {}",
+          err.to_string()
+        ))
+        .report_and_exit(1)
+      });
 
   pack.borrow_mut().write(pack_content.as_bytes());
   poc.borrow_mut().write("say Hello, World!".as_bytes());

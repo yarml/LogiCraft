@@ -1,3 +1,5 @@
+use crate::report::message::Message;
+
 use super::{OutputDirectory, OutputFile, OutputFilesystem};
 use std::{cell::RefCell, collections::HashMap, fs, path::PathBuf, rc::Rc};
 
@@ -32,19 +34,22 @@ impl DirOutputFilesystem {
 impl DirOutputDirectory {
   pub fn new(path: &PathBuf) -> Self {
     if path.exists() {
-      let md = fs::metadata(&path).expect(&format!(
-        "Could not read existing directory's metadata: {path:?}"
-      ));
+      let md = fs::metadata(&path).unwrap_or_else(|err| {
+        Message::input_error(err, &path).report_and_exit(1)
+      });
       if md.is_dir() {
-        fs::remove_dir_all(&path)
-          .expect(&format!("Could not remove existing directory: {path:?}"));
+        fs::remove_dir_all(&path).unwrap_or_else(|err| {
+          Message::remove_error(err, &path).report_and_exit(1)
+        });
       } else if md.is_file() || md.is_symlink() {
-        fs::remove_file(&path)
-          .expect(&format!("Could not remove existing file: {path:?}"));
+        fs::remove_file(&path).unwrap_or_else(|err| {
+          Message::remove_error(err, &path).report_and_exit(1)
+        });
       }
     }
-    fs::create_dir(&path)
-      .expect(&format!("Could not create directory: {path:?}"));
+    fs::create_dir(&path).unwrap_or_else(|err| {
+      Message::output_error(err, &path).report_and_exit(1)
+    });
     Self {
       path: path.clone(),
       entries: HashMap::new(),
@@ -71,7 +76,14 @@ impl OutputDirectory for DirOutputDirectory {
         &path,
       ))))
     }) {
-      DirOutputEntry::File(_) => panic!("Tried creating a directory when previously a file was created at the same path: {path:?}"),
+      DirOutputEntry::File(_) => {
+        Message::compiler_bug(
+          &format!(
+            "Tried creating a directory when previously a directory was created at the same path: {path:?}"
+          )
+        )
+        .report_and_exit(1)
+      },
       DirOutputEntry::Directory(dir) => dir.clone(),
     }
   }
@@ -82,14 +94,22 @@ impl OutputDirectory for DirOutputDirectory {
       DirOutputEntry::File(Rc::new(RefCell::new(DirOutputFile::new(&path))))
     }) {
       DirOutputEntry::File(file) => file.clone(),
-      DirOutputEntry::Directory(_) => panic!("Tried creating a file when previously a directory was created at the same path: {path:?}"),
+      DirOutputEntry::Directory(_) => {
+        Message::compiler_bug(
+          &format!(
+            "Tried creating a file when previously a directory was created at the same path: {path:?}"
+          )
+        )
+        .report_and_exit(1)
+      },
     }
   }
 }
 
 impl OutputFile for DirOutputFile {
   fn write(&mut self, data: &[u8]) {
-    fs::write(self.path.clone(), data)
-      .expect(&format!("Could not write to file: {:?}", self.path));
+    fs::write(self.path.clone(), data).unwrap_or_else(|err| {
+      Message::output_error(err, &self.path).report_and_exit(1)
+    });
   }
 }

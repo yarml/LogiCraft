@@ -84,8 +84,9 @@ impl ModuleLoader {
         .report_and_exit(1)
       }
       let path = valid_paths[0].clone();
-      let source = fs::read_to_string(&path)
-        .expect(&format!("Could not read module: {:?}", path));
+      let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+        Message::input_error(err, &path).report_and_exit(1)
+      });
       let lexer = Lexer;
       let parser = Parser;
       let tokens = match lexer.lex(&source) {
@@ -99,7 +100,6 @@ impl ModuleLoader {
       };
 
       for node in &nodes {
-        println!("{:?}", node);
         match node {
           Node::ModDecl(name) => {
             let path = next.join(name.value.clone());

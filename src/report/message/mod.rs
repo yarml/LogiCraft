@@ -3,7 +3,7 @@ pub mod line;
 
 use colored::{Color, Colorize};
 use line::HighlightedLine;
-use std::{path::PathBuf, process};
+use std::{error::Error, io, path::PathBuf, process};
 
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -19,6 +19,7 @@ pub enum MessageType {
   Help,
   Warning,
   Error,
+  Bug,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +43,24 @@ impl Message {
       meta: Vec::new(),
       notes: Vec::new(),
     }
+  }
+
+  pub fn compiler_bug(message: &str) -> Self {
+    Self::new(message, MessageType::Bug)
+      .with_note("This is a compiler bug. Please report it.")
+  }
+
+  pub fn input_error(err: io::Error, path: &PathBuf) -> Self {
+    Self::new(&format!("{}", err.to_string()), MessageType::Error)
+      .with_note(&format!("While reading `{}`", path.to_string_lossy()))
+  }
+  pub fn remove_error(err: io::Error, path: &PathBuf) -> Self {
+    Self::new(&format!("{}", err.to_string()), MessageType::Error)
+      .with_note(&format!("While removing `{}`", path.to_string_lossy()))
+  }
+  pub fn output_error(err: io::Error, path: &PathBuf) -> Self {
+    Self::new(&format!("{}", err.to_string()), MessageType::Error)
+      .with_note(&format!("While writing `{}`", path.to_string_lossy()))
   }
 
   pub fn with_note(mut self, note: &str) -> Self {
@@ -101,6 +120,7 @@ impl MessageType {
       MessageType::Help => "help",
       MessageType::Warning => "warning",
       MessageType::Error => "error",
+      MessageType::Bug => "compiler bug",
     }
   }
 
@@ -109,6 +129,7 @@ impl MessageType {
       MessageType::Help => Color::Green,
       MessageType::Warning => Color::Yellow,
       MessageType::Error => Color::Red,
+      MessageType::Bug => Color::Magenta,
     }
   }
   pub fn entails_exit(&self) -> bool {
