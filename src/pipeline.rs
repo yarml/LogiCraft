@@ -1,7 +1,10 @@
-use crate::grammar::{
-  lexer::Lexer,
-  parser::{ast::Node, Parser},
-  semantics::module::ModulePath,
+use crate::{
+  grammar::{
+    lexer::Lexer,
+    parser::{ast::Node, Parser},
+    semantics::module::ModulePath,
+  },
+  report::message::{Message, MessageType},
 };
 use std::{
   collections::{HashMap, HashSet},
@@ -57,10 +60,28 @@ impl ModuleLoader {
         })
         .collect();
       if valid_paths.is_empty() {
-        panic!("Could not find module {}", next.to_string());
+        Message::new(
+          &format!("Could not find module `{}`", next.to_string()),
+          MessageType::Error,
+        )
+        .report_and_exit(1)
       }
       if valid_paths.len() > 1 {
-        panic!("Ambiguous module {}", next.to_string());
+        let paths = valid_paths
+          .iter()
+          .map(|path| format!("`{}`", path.to_string_lossy().to_string()))
+          .collect::<Vec<_>>()
+          .join(", ");
+        Message::new(
+          &format!("Ambiguous module `{}`", next.to_string()),
+          MessageType::Error,
+        )
+        .with_note(&format!(
+          "Module `{}` could be any of {}",
+          next.to_string(),
+          paths
+        ))
+        .report_and_exit(1)
       }
       let path = valid_paths[0].clone();
       let source = fs::read_to_string(&path)

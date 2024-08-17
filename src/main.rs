@@ -11,6 +11,7 @@ use format::pack::PackMeta;
 use output::dir::DirOutputFilesystem;
 use output::OutputFilesystem;
 use pipeline::Pipeline;
+use report::message::{Message, MessageType};
 
 fn main() {
   let args = getargs();
@@ -36,9 +37,11 @@ fn main() {
 
   let filesystem = match DirOutputFilesystem::new(&destination, args.force) {
     Some(fs) => fs,
-    None => {
-      panic!("Destination already exists. Use -f to overwrite.");
-    }
+    None => Message::new(
+      "Destination already exists. Use -f to overwrite.",
+      MessageType::Error,
+    )
+    .report_and_exit(1),
   };
 
   let pack = filesystem.root().borrow_mut().file("pack.mcmeta");

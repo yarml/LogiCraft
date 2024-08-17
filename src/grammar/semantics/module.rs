@@ -12,7 +12,7 @@ impl ModulePath {
 
   pub fn paths(&self, root: PathBuf) -> Vec<PathBuf> {
     if self.0.len() == 0 {
-      vec![root.join("main.lc")]
+      vec![root.join("lib.lc")]
     } else {
       let names_except_last = self.0[..self.0.len() - 1].iter();
       let last_name = self.0.last().unwrap();
