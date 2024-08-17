@@ -148,7 +148,10 @@ peg::parser! {
       [Token::Hash] [Token::BracketOpen] _?
       name:name() _?
       [Token::BracketClose] { name }
-    rule attributes() -> Vec<WithLineInfo<Name>> = t:attribute() ** (_) _ { t }
+    rule attributes() -> Vec<WithLineInfo<Name>> =
+      t:(t:attribute() ** (_) _ { t })? {
+        t.map_or(Vec::new(), |v| v)
+      }
 
     // global declarations
     rule glob_fn_decl() -> Node =

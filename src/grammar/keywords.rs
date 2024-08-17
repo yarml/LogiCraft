@@ -19,7 +19,7 @@ impl Keyword {
       Keyword::Fn => "fn",
       Keyword::If => "if",
       Keyword::Else => "else",
-      Keyword::Ret => "ret",
+      Keyword::Ret => "return",
       Keyword::Struct => "struct",
     }
   }

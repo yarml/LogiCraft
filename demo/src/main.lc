@@ -1,5 +1,8 @@
+mod utils;
 
-#[export]
+use utils::getnum;
+
 fn test() {
-  println(1 + 1);
+  let a = getnum();
+  println(1 + a);
 }
