@@ -3,9 +3,9 @@ mod helper;
 mod peg;
 pub mod token;
 
+use crate::report::line::LineInfoFn;
 use crate::report::location::WithLineInfo;
 use error::LexerError;
-use helper::LineInfoFn;
 use token::Token;
 
 pub struct Lexer;

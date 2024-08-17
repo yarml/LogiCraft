@@ -1,4 +1,3 @@
-use super::helper::LineInfoFn;
 use super::helper::{
   parse_identifier, parse_literal_float, parse_literal_integer,
 };
@@ -7,6 +6,7 @@ use crate::grammar::{
   identifier::Name,
   operators::{AssignOp, BinOp, Op, UnOp},
 };
+use crate::report::line::LineInfoFn;
 use crate::report::location::WithLineInfo;
 
 peg::parser! {

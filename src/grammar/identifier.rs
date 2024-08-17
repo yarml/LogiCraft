@@ -26,4 +26,11 @@ impl Identifier {
   pub fn is_singular(&self) -> bool {
     !self.root && self.parts.len() == 1
   }
+  pub fn name(&self) -> Name {
+    self.parts.last().unwrap().value.clone()
+  }
+
+  pub fn name_line_info(&self) -> WithLineInfo<Name> {
+    self.parts.last().unwrap().clone()
+  }
 }

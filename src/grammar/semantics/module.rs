@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use crate::grammar::identifier::Name;
+use crate::{
+  grammar::identifier::{Identifier, Name},
+  report::message::Message,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ModulePath(pub Vec<Name>);
@@ -8,6 +11,19 @@ pub struct ModulePath(pub Vec<Name>);
 impl ModulePath {
   pub fn main() -> Self {
     ModulePath(vec![])
+  }
+  pub fn of_root_identifier(id: &Identifier) -> Self {
+    if id.root {
+      let mut parts: Vec<_> =
+        id.parts.iter().map(|part| part.value.clone()).collect();
+      parts.pop();
+      ModulePath(parts)
+    } else {
+      Message::compiler_bug(
+        "ModulePath::of_root_identifier called with non-root identifier",
+      )
+      .report_and_exit(1)
+    }
   }
 
   pub fn paths(&self, root: PathBuf) -> Vec<PathBuf> {

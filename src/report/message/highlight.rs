@@ -55,8 +55,12 @@ impl Highlight {
   }
 
   pub fn with_label(mut self, label: &str) -> Self {
-    self.label = Some(String::from(label));
+    self.add_label(label);
     self
+  }
+
+  pub fn add_label(&mut self, label: &str) {
+    self.label = Some(String::from(label));
   }
 }
 
