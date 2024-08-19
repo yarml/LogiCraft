@@ -147,7 +147,9 @@ peg::parser! {
       ret()
 
     rule statement_seq() -> Vec<Node> =
-      s:(statement() ** stmt_sep()) stmt_sep() { s }
+      s:(s:(statement() ** stmt_sep()) stmt_sep() { s })? {
+        s.unwrap_or(Vec::new())
+      }
 
     // Tags
     rule attribute() -> WithLineInfo<Name> =

@@ -1,9 +1,11 @@
 mod utils;
 
 use utils::getnum;
-use math::getnum;
 
 fn test() {
   let a = getnum();
   println(1 + a);
+}
+fn test() {
+  
 }

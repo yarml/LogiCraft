@@ -16,7 +16,6 @@ use std::collections::HashMap;
 pub struct Resolver {
   module: ModulePath,
   aliases: HashMap<Name, Alias>,
-  parent: Option<Box<Resolver>>,
 }
 
 #[derive(Debug, Clone)]
@@ -26,20 +25,14 @@ pub struct Alias {
 }
 
 impl Resolver {
-  pub fn new(module: &ModulePath, parent: Option<Resolver>) -> Self {
+  pub fn new(module: &ModulePath) -> Self {
     Self {
       module: module.clone(),
       aliases: HashMap::new(),
-      parent: parent.map(|p| Box::new(p)),
     }
   }
 
-  pub fn pop(self) -> Option<Resolver> {
-    self.parent.map(|p| *p)
-  }
-
   pub fn use_name(&mut self, id: &Identifier, errman: &mut ErrorManager) {
-    println!("Using: {id:?}");
     let name = id.name();
     let new_alias = Alias::new(id, &self.module);
     if self.aliases.contains_key(&name) {
@@ -67,6 +60,64 @@ impl Resolver {
         .report_and_exit(1)
     }
     self.aliases.insert(name, new_alias);
+  }
+
+  pub fn declare_name(
+    &mut self,
+    name: WithLineInfo<Name>,
+    errman: &mut ErrorManager,
+  ) {
+    self.use_name(
+      &Identifier {
+        root: false,
+        parts: vec![name],
+      },
+      errman,
+    )
+  }
+
+  pub fn resolve(
+    &self,
+    id: &Identifier,
+    errman: &mut ErrorManager,
+  ) -> Vec<Name> {
+    if id.root {
+      return id.parts.iter().map(|part| part.value.clone()).collect();
+    }
+
+    let first = id.parts.first().unwrap();
+    let alias = self.aliases.get(&first.value);
+
+    if alias.is_none() {
+      let line_info = id.line_info();
+      let line = errman
+        .make_line(line_info.line, LineType::Source)
+        .with_highlight(
+          Highlight::new(line_info.column, line_info.len, HighlightType::Focus)
+            .with_label("This symbol"),
+        );
+      errman
+        .make_message(
+          &format!("Could not resolve `{}`", first.value),
+          MessageType::Error,
+          line_info.line,
+          line_info.column,
+        )
+        .with_line(line)
+        .report_and_exit(1)
+    }
+
+    let alias = alias.unwrap();
+    let mut path = alias.path.clone();
+    path.append(
+      &mut id
+        .parts
+        .iter()
+        .skip(1)
+        .map(|part| part.value.clone())
+        .collect(),
+    );
+    path
   }
 }
 

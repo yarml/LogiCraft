@@ -33,4 +33,8 @@ impl Identifier {
   pub fn name_line_info(&self) -> WithLineInfo<Name> {
     self.parts.last().unwrap().clone()
   }
+
+  pub fn line_info(&self) -> WithLineInfo<Name> {
+    self.parts.first().unwrap().clone()
+  }
 }
