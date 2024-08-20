@@ -1,11 +1,11 @@
 mod utils;
-
 use utils::getnum;
 
+let a = d * 2;
+let d = 3;
+
 fn test() {
-  let a = getnum();
+  let b = a * 2;
+  let c = b;
   println(1 + a);
-}
-fn test() {
-  
 }

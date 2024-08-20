@@ -6,7 +6,7 @@ use crate::{
     message::{
       highlight::{Highlight, HighlightType},
       line::{HighlightedLine, LineType},
-      MessageType,
+      Message, MessageType,
     },
   },
 };
@@ -19,9 +19,21 @@ pub struct Resolver {
 }
 
 #[derive(Debug, Clone)]
+pub struct LocalResolver<'a> {
+  names: HashMap<Name, WithLineInfo<Name>>,
+  parent: &'a Resolver,
+}
+
+#[derive(Debug, Clone)]
 pub struct Alias {
   pub path: Vec<Name>,
   alias: WithLineInfo<Name>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ResolvedName {
+  Local(Name),
+  Global(Vec<Name>),
 }
 
 impl Resolver {
@@ -118,6 +130,61 @@ impl Resolver {
         .collect(),
     );
     path
+  }
+}
+
+impl<'a> LocalResolver<'a> {
+  pub fn new(parent: &'a Resolver) -> Self {
+    Self {
+      names: HashMap::new(),
+      parent,
+    }
+  }
+
+  pub fn declare_name(
+    &mut self,
+    name: WithLineInfo<Name>,
+    errman: &mut ErrorManager,
+  ) {
+    if self.names.contains_key(&name.value) {
+      let prev_name = &self.names[&name.value];
+      let current_highlight =
+        name.make_highligh(HighlightType::Focus, Some("Name already declared"));
+      let prev_highlight = prev_name
+        .make_highligh(HighlightType::Helper, Some("Previously declared here"));
+      let current_line = errman
+        .make_line(name.line, LineType::Source)
+        .with_highlight(current_highlight);
+      let prev_line = errman
+        .make_line(prev_name.line, LineType::Source)
+        .with_highlight(prev_highlight);
+      errman
+        .make_message(
+          "Name already used",
+          MessageType::Error,
+          name.line,
+          name.column,
+        )
+        .with_line(current_line)
+        .with_line(prev_line)
+        .report_and_exit(1)
+    }
+    self.names.insert(name.value.clone(), name);
+  }
+
+  pub fn resolve(
+    &self,
+    id: &Identifier,
+    errman: &mut ErrorManager,
+  ) -> ResolvedName {
+    if id.is_singular() {
+      let name = id.parts.first().unwrap();
+      if self.names.contains_key(&name.value) {
+        return ResolvedName::Local(name.value.clone());
+      }
+    }
+
+    ResolvedName::Global(self.parent.resolve(id, errman))
   }
 }
 
