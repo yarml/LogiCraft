@@ -9,7 +9,7 @@ pub struct WithLineInfo<T> {
 }
 
 impl<T> WithLineInfo<T> {
-  pub fn make_highligh(
+  pub fn make_highlight(
     &self,
     typ: HighlightType,
     label: Option<&str>,
@@ -20,6 +20,28 @@ impl<T> WithLineInfo<T> {
     } else {
       highlight
     }
+  }
+  pub fn map<U, F>(self, other: F) -> WithLineInfo<U>
+  where
+    F: FnOnce(T) -> U,
+  {
+    WithLineInfo {
+      value: other(self.value),
+      line: self.line,
+      column: self.column,
+      len: self.len,
+    }
+  }
+  pub fn try_map<U, E, F>(self, other: F) -> Result<WithLineInfo<U>, E>
+  where
+    F: FnOnce(T) -> Result<U, E>,
+  {
+    Ok(WithLineInfo {
+      value: other(self.value)?,
+      line: self.line,
+      column: self.column,
+      len: self.len,
+    })
   }
 }
 

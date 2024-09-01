@@ -49,6 +49,10 @@ impl Message {
     Self::new(message, MessageType::Bug)
       .with_note("This is a compiler bug. Please report it.")
   }
+  pub fn not_implemented(message: &str) -> Self {
+    Self::new(message, MessageType::Bug)
+      .with_note("Using feature not yet implemented.")
+  }
 
   pub fn input_error(err: io::Error, path: &PathBuf) -> Self {
     Self::new(&format!("{}", err.to_string()), MessageType::Error)

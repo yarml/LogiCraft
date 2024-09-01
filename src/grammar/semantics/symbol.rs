@@ -6,7 +6,7 @@ use crate::{
     message::{
       highlight::{Highlight, HighlightType},
       line::{HighlightedLine, LineType},
-      Message, MessageType,
+      MessageType,
     },
   },
 };
@@ -149,9 +149,9 @@ impl<'a> LocalResolver<'a> {
     if self.names.contains_key(&name.value) {
       let prev_name = &self.names[&name.value];
       let current_highlight =
-        name.make_highligh(HighlightType::Focus, Some("Name already declared"));
+        name.make_highlight(HighlightType::Focus, Some("Name already declared"));
       let prev_highlight = prev_name
-        .make_highligh(HighlightType::Helper, Some("Previously declared here"));
+        .make_highlight(HighlightType::Helper, Some("Previously declared here"));
       let current_line = errman
         .make_line(name.line, LineType::Source)
         .with_highlight(current_highlight);

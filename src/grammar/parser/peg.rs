@@ -1,4 +1,5 @@
 use super::ast::{Expression, Node, OptionalTypedName, TypedName};
+use super::attributes::Attribute;
 use super::helper::LineInfoFn;
 use crate::{
   grammar::{
@@ -151,14 +152,24 @@ peg::parser! {
         s.unwrap_or(Vec::new())
       }
 
-    // Tags
-    rule attribute() -> WithLineInfo<Name> =
+    // Attributes
+    rule attribute() -> WithLineInfo<Attribute> =
       [Token::Hash] [Token::BracketOpen] _?
       name:name() _?
-      [Token::BracketClose] { name }
-    rule attributes() -> Vec<WithLineInfo<Name>> =
-      t:(t:attribute() ** (_) _ { t })? {
-        t.map_or(Vec::new(), |v| v)
+      [Token::BracketClose] {?
+        name.try_map(
+          |name| {
+            Attribute::try_from(&name as &str)
+              .map_err(|_| "Unknown attribute")
+          }
+        )
+      }
+    rule attributes() -> Vec<WithLineInfo<Attribute>> =
+      atts:(att:attribute() ** (_) _ { att })? {
+        atts.map_or(
+          Vec::new(),
+          |atts| atts
+        )
       }
 
     // global declarations
