@@ -174,7 +174,7 @@ impl Display for GlobalDeclType {
           .map(|field| field.typ.to_string())
           .collect::<Vec<_>>()
           .join(", ");
-        write!(f, "struct {{ {struct_types} }}")
+        write!(f, "struct {{{struct_types}}}")
       }
     }
   }

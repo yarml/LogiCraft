@@ -9,6 +9,14 @@ pub struct WithLineInfo<T> {
 }
 
 impl<T> WithLineInfo<T> {
+  pub fn debug(value: T) -> Self {
+    WithLineInfo {
+      value,
+      line: 0,
+      column: 0,
+      len: 0,
+    }
+  }
   pub fn map<F, U>(self, mapfn: F) -> WithLineInfo<U>
   where
     F: FnOnce(T) -> U,

@@ -2,7 +2,7 @@ use crate::{
   grammar::{
     lexer::Lexer,
     parser::{ast::Node, Parser},
-    semantics::{module::ModulePath, semify},
+    semantics::{module::ModulePath, Semifier},
   },
   report::message::{Message, MessageType},
 };
@@ -39,7 +39,8 @@ impl Pipeline {
 
   pub fn run(&self) {
     let program = self.load();
-    semify(&program);
+    let declmap = Semifier::declmap(&program);
+    println!("{declmap}");
   }
 }
 

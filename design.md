@@ -114,8 +114,9 @@ If implementing the semifier is to be cut to steps, it should be as follows:
 - Implement ProgDeclMap, a unit capable of keeping track of all global identifiers(functions and variables) alongside their mutability,
 types, etc.
 - Test ProgDeclMap, does it look like it works? Fix it.
-- Implement LocalDeclMap, a unit similar to ProgDeclMap, in fact it keeps a refenrence to it, and delegates looking up names
-to ProgDeclMap if it cannot resolve a name, but it prioritizes its own local names.
-- Verify all function bodies with their own LocalDeclMap using the same ProgDeclMap, report errors if they arrise.
-- If no error arises, then we're done semifying, the semifier outputs the same AST except with all identifiers remapped to thei global names,
-an AST without ModDecl or UseDecl, functions of the AST have attached with them their LocalDeclMap.
+- Implement LocalDeclMap, a unit similar to ProgDeclMap, except that it acts on local names instead of global indetifiers, can only contain
+variables and their assosiated types.
+- Implement SymbolChecker, which utilizes both ProgDeclMap, and LocalDeclMap to verify function bodies consistency.
+- Verify all function bodies with their own SymbolResolver, report errors if they arrise.
+- If no error arises, then we're done semifying, the semifier outputs the same AST except with all identifiers remapped to their global names,
+an AST without ModDecl or UseDecl, functions of the AST have attached with them their SymbolResolver.

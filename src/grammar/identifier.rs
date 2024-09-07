@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::report::location::WithLineInfo;
+use crate::report::{location::WithLineInfo, message::Message};
 
 use super::{
   builtins::{BuiltinFn, BuiltinType},
@@ -36,6 +36,36 @@ pub enum CallTarget {
 impl LocalIdentifier {
   pub fn is_singular(&self) -> bool {
     !self.root && self.parts.len() == 1
+  }
+}
+
+impl From<&str> for GlobalIdentifier {
+  fn from(value: &str) -> Self {
+    let parts = value.split("::").collect::<Vec<_>>();
+    if parts.len() == 1 {
+      Message::compiler_bug("A global identifier needs at least 2 parts")
+        .report_and_exit(1);
+    }
+    if parts[0] == "lib" {
+      if parts.len() == 2 {
+        return GlobalIdentifier {
+          module: ModulePath::main(),
+          name: WithLineInfo::debug(parts[1].to_string()),
+        };
+      } else {
+        Message::compiler_bug("Main module cannot have more than 2 parts")
+          .report_and_exit(1);
+      }
+    }
+
+    let module = ModulePath(
+      parts[..parts.len() - 1]
+        .iter()
+        .map(|s| s.to_string())
+        .collect(),
+    );
+    let name = WithLineInfo::debug(parts[parts.len() - 1].to_string());
+    GlobalIdentifier { module, name }
   }
 }
 
