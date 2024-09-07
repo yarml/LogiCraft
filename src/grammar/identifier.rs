@@ -13,7 +13,7 @@ pub struct LocalIdentifier {
   pub parts: Vec<WithLineInfo<Name>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GlobalIdentifier {
   pub module: ModulePath,
   pub name: Name,
