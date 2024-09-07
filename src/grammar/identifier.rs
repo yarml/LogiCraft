@@ -1,28 +1,37 @@
 use crate::report::location::WithLineInfo;
 
-use super::builtins::{BuiltinFn, BuiltinType};
+use super::{
+  builtins::{BuiltinFn, BuiltinType},
+  semantics::module::ModulePath,
+};
 
 pub type Name = String;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Identifier {
+pub struct LocalIdentifier {
   pub root: bool,
   pub parts: Vec<WithLineInfo<Name>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct GlobalIdentifier {
+  pub module: ModulePath,
+  pub name: Name,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
   Builtin(BuiltinType),
-  Declared(Identifier),
+  Declared(LocalIdentifier),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CallTarget {
   Builtin(BuiltinFn),
-  Declared(Identifier),
+  Declared(LocalIdentifier),
 }
 
-impl Identifier {
+impl LocalIdentifier {
   pub fn is_singular(&self) -> bool {
     !self.root && self.parts.len() == 1
   }

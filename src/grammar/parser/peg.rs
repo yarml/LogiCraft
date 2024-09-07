@@ -1,9 +1,10 @@
 use super::ast::{Expression, Node, OptionalTypedName, TypedName};
 use super::helper::LineInfoFn;
+use crate::report::message::Message;
 use crate::{
   grammar::{
     builtins::Builtin,
-    identifier::{CallTarget, Identifier, Name, Type},
+    identifier::{CallTarget, LocalIdentifier, Name, Type},
     keywords::Keyword,
     lexer::token::Token,
     operators::{AssignOp, BinOp, Precedence, UnOp},
@@ -61,7 +62,7 @@ peg::parser! {
       )
       end:position!() { line_info.tag(t, start, end) }
     // Passthrough lexer
-    rule identifier() -> Identifier = [Token::Identifier(name)] { name.clone() }
+    rule identifier() -> LocalIdentifier = [Token::Identifier(name)] { name.clone() }
     // Separators
     rule _() = [Token::Separator]
     rule param_sep() = _? [Token::Comma] _?
@@ -174,7 +175,17 @@ peg::parser! {
         Node::FnDecl { attributes, name, params, ret_type, body }
       }
 
-    rule glob_var_decl() -> Node = d:var_decl() stmt_sep() { d }
+    rule glob_var_decl() -> Node = d:var_decl() stmt_sep() {?
+      match d {
+        Node::VarDecl { typ, val } => if typ.typ.is_none() {
+          Err("Global variable declarations must have an explicit type.")
+        } else {
+          Ok(Node::VarDecl { typ, val })
+        },
+        _ => Message::compiler_bug("Expected a variable declaration.")
+              .report_and_exit(1),
+      }
+    }
 
     rule glob_mod_decl() -> Node =
       [Token::Keyword(Keyword::Mod)] _

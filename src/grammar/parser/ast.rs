@@ -1,6 +1,6 @@
 use crate::{
   grammar::{
-    identifier::{CallTarget, Identifier, Name, Type},
+    identifier::{CallTarget, LocalIdentifier, Name, Type},
     operators::{AssignOp, BinOp, UnOp},
   },
   report::location::WithLineInfo,
@@ -24,7 +24,7 @@ pub enum Expression {
   AtomInteger(WithLineInfo<isize>),
   AtomFloat(WithLineInfo<f64>),
   AtomString(WithLineInfo<String>),
-  AtomIdentifier(Identifier),
+  AtomIdentifier(LocalIdentifier),
 
   Call(WithLineInfo<CallTarget>, Vec<Expression>),
 
@@ -36,7 +36,7 @@ pub enum Expression {
 pub enum Node {
   Expression(Expression),
   Assignment {
-    target: Identifier,
+    target: LocalIdentifier,
     op: WithLineInfo<AssignOp>,
     val: Expression,
   },
@@ -53,7 +53,7 @@ pub enum Node {
   },
   Return(Expression),
   ModDecl(WithLineInfo<Name>),
-  UseDecl(Identifier),
+  UseDecl(LocalIdentifier),
   StructDecl {
     name: WithLineInfo<Name>,
     fields: Vec<TypedName>,

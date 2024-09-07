@@ -2,7 +2,7 @@ use super::token::Token;
 use crate::{
   grammar::{
     builtins::{Builtin, BuiltinFn, BuiltinType},
-    identifier::{Identifier, Name},
+    identifier::{LocalIdentifier, Name},
     keywords::Keyword,
   },
   report::location::WithLineInfo,
@@ -39,7 +39,7 @@ pub fn parse_identifier(
       Ok(token)
     }
   } else {
-    Ok(Token::Identifier(Identifier { root, parts }))
+    Ok(Token::Identifier(LocalIdentifier { root, parts }))
   }
 }
 

@@ -2,6 +2,8 @@ mod utils;
 
 use utils::getnum;
 
+let a: int = 10;
+
 fn test() {
   let a = getnum();
   println(1 + a);
