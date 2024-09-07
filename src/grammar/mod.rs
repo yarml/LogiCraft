@@ -4,4 +4,4 @@ pub mod keywords;
 pub mod lexer;
 pub mod operators;
 pub mod parser;
-pub mod semantics;
+pub mod semifier;

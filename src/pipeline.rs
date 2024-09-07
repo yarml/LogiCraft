@@ -2,7 +2,7 @@ use crate::{
   grammar::{
     lexer::Lexer,
     parser::{ast::Node, Parser},
-    semantics::{module::ModulePath, Analyzer},
+    semifier::{module::ModulePath, Semifier},
   },
   report::message::{Message, MessageType},
 };
@@ -19,6 +19,7 @@ pub struct Pipeline {
   root: PathBuf,
 }
 
+#[derive(Debug, Clone)]
 pub struct Tree {
   pub nodes: Vec<Node>,
   pub path: PathBuf,
@@ -38,9 +39,8 @@ impl Pipeline {
 
   pub fn run(&self) {
     let prog = self.load();
-    let analyzer = Analyzer::new(prog);
-    let main = ModulePath::main();
-    analyzer.analyze(&main);
+    let semifier = Semifier;
+    semifier.semify(prog);
   }
 }
 

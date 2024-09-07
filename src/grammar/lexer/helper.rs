@@ -55,6 +55,7 @@ pub fn keywords() -> &'static HashMap<&'static str, Token> {
     map.insert("use", Token::Keyword(Keyword::Use));
     map.insert("fn", Token::Keyword(Keyword::Fn));
     map.insert("let", Token::Keyword(Keyword::Let));
+    map.insert("mut", Token::Keyword(Keyword::Mut));
     map.insert("if", Token::Keyword(Keyword::If));
     map.insert("else", Token::Keyword(Keyword::Else));
     map.insert("return", Token::Keyword(Keyword::Ret));

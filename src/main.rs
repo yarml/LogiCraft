@@ -1,6 +1,7 @@
 mod control;
 mod format;
 mod grammar;
+mod ir;
 mod output;
 mod pipeline;
 mod report;

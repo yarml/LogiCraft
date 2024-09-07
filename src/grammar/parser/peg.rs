@@ -1,4 +1,4 @@
-use super::ast::{Expression, Node, OptionalTypedName, TypedName};
+use super::ast::{Expression, Node, OptionalTypedNameWithLineInfo, TypedNameWithLineInfo};
 use super::attributes::Attribute;
 use super::helper::LineInfoFn;
 use crate::{
@@ -31,7 +31,7 @@ peg::parser! {
       start:position!()
       [Token::AssignOp(op)]
       end:position!() { line_info.tag(*op, start, end) }
-    rule call_target() -> WithLineInfo<CallTarget> =
+    rule call_target() -> WithLineInfo<CallTarget<Identifier>> =
       start:position!()
       target:(
         [Token::Identifier(id)] { CallTarget::Declared(id.clone()) } /
@@ -69,11 +69,11 @@ peg::parser! {
     rule stmt_sep() = _? [Token::SemiColon] _?
 
     // Simpletons: simple composites of atoms
-    rule typed_name() -> TypedName =
+    rule typed_name() -> TypedNameWithLineInfo =
       name:name() _?
       [Token::Colon] _?
       typ:typ() {
-        TypedName {
+        TypedNameWithLineInfo {
           name: name,
           typ: typ,
         }
@@ -83,15 +83,15 @@ peg::parser! {
       [Token::Arrow] _? typ:typ() { typ }
 
     // Sequences: things that repeat
-    rule params_decl() -> Vec<TypedName> =
+    rule params_decl() -> Vec<TypedNameWithLineInfo> =
       d:(typed_name() ** param_sep()) param_sep()? { d }
-    rule fields_decl() -> Vec<TypedName> =
+    rule fields_decl() -> Vec<TypedNameWithLineInfo> =
       d:(typed_name() ** param_sep()) param_sep()? { d }
-    rule expression_seq() -> Vec<Expression> =
+    rule expression_seq() -> Vec<Expression<Identifier>> =
       e:(expression() ** param_sep()) param_sep()? { e }
 
     // Expression: This beast has a section for itself
-    rule expression() -> Expression = precedence! {
+    rule expression() -> Expression<Identifier> = precedence! {
       x:(@) _? op:binop(Precedence::Lowest) _? y:@ {
         Expression::BinOp(x.into(), op, y.into())
       }
@@ -122,11 +122,16 @@ peg::parser! {
     // Statements
     rule var_decl() -> Node =
       [Token::Keyword(Keyword::Let)] _
+      mutable:([Token::Keyword(Keyword::Mut)] _ { true } / { false })
       name:name() _?
       typ:([Token::Colon] _? typ:typ() { typ })? _?
       [Token::AssignOp(AssignOp::Identity)] _?
       val:expression() {
-        Node::VarDecl{ typ: OptionalTypedName { name, typ }, val }
+        Node::VarDecl{
+          typ: OptionalTypedNameWithLineInfo { name, typ },
+          val,
+          mutable
+        }
       }
 
     rule assignment() -> Node =

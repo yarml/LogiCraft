@@ -21,6 +21,9 @@ impl<T> WithLineInfo<T> {
       highlight
     }
   }
+  pub fn unwrap(self) -> T {
+    self.value
+  }
   pub fn map<U, F>(self, other: F) -> WithLineInfo<U>
   where
     F: FnOnce(T) -> U,
