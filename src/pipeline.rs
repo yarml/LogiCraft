@@ -40,7 +40,19 @@ impl Pipeline {
   pub fn run(&self) {
     let program = self.load();
     let declmap = Semifier::declmap(&program);
-    println!("{declmap}");
+
+    let program = program
+      .into_iter()
+      .map(|(module_path, tree)| {
+        let usemap = Semifier::usemap(&module_path, &declmap, &tree);
+        (module_path, (tree, usemap))
+      })
+      .collect::<HashMap<_, _>>();
+
+    println!("Global Declarations:\n{declmap}");
+    for (module, (tree, usemap)) in &program {
+      println!("Usemap for {module}:\n{usemap}")
+    }
   }
 }
 

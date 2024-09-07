@@ -39,6 +39,9 @@ impl HighlightedLine {
       highlights: Vec::new(),
     }
   }
+  pub fn from_src(source: &str, num: usize) -> Self {
+    Self::new(num, source.lines().nth(num - 1).unwrap(), LineType::Source)
+  }
 
   pub fn with_highlight(mut self, highlight: Highlight) -> Self {
     self.highlights.push(highlight);

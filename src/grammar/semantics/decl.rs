@@ -17,6 +17,10 @@ pub struct ProgDeclMap {
   decls: HashMap<GlobalIdentifier, GlobalDecl>,
 }
 
+pub struct LocalDeclMap {
+  decls: HashMap<Name, TypedName>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct GlobalDecl {
   pub id: GlobalIdentifier,
@@ -137,7 +141,24 @@ impl ProgDeclMap {
     self.decls.get(id)
   }
 }
+impl LocalDeclMap {
+  pub fn from_params(params: &[TypedName]) -> Self {
+    let mut instance = Self {
+      decls: HashMap::new(),
+    };
+    for param in params {
+      instance.add_var(param.clone());
+    }
+    instance
+  }
+  pub fn add_var(&mut self, vardecl: TypedName) {
+    self.decls.insert(vardecl.name.value.clone(), vardecl);
+  }
 
+  pub fn lookup(&self, name: &str) -> Option<&TypedName> {
+    self.decls.get(name)
+  }
+}
 impl Display for ProgDeclMap {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     for decl in self.decls.values() {
@@ -146,13 +167,11 @@ impl Display for ProgDeclMap {
     Ok(())
   }
 }
-
 impl Display for GlobalDecl {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{} -> {}", self.id, self.typ)
   }
 }
-
 impl Display for GlobalDeclType {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {

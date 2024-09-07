@@ -37,6 +37,42 @@ impl LocalIdentifier {
   pub fn is_singular(&self) -> bool {
     !self.root && self.parts.len() == 1
   }
+
+  pub fn resolve(&self, reference: &ModulePath) -> GlobalIdentifier {
+    if self.root {
+      let module = ModulePath(
+        self.parts[..self.parts.len() - 1]
+          .iter()
+          .map(|winfo| winfo.value.clone())
+          .collect::<Vec<_>>(),
+      );
+      let name = self.parts.last().unwrap().clone();
+      GlobalIdentifier { module, name }
+    } else {
+      let mut module = reference.clone();
+      module.0.extend_from_slice(
+        &self.parts[..self.parts.len() - 1]
+          .iter()
+          .map(|winfo| winfo.value.clone())
+          .collect::<Vec<_>>(),
+      );
+      let name = self.parts.last().unwrap().clone();
+      GlobalIdentifier { module, name }
+    }
+  }
+}
+
+impl From<&str> for LocalIdentifier {
+  fn from(value: &str) -> Self {
+    let parts = value.split("::").collect::<Vec<_>>();
+    let root = parts[0] == "";
+    let parts = if root { &parts[1..] } else { &parts[..] };
+    let parts = parts
+      .iter()
+      .map(|part| WithLineInfo::debug(part.to_string()))
+      .collect();
+    LocalIdentifier { root, parts }
+  }
 }
 
 impl From<&str> for GlobalIdentifier {

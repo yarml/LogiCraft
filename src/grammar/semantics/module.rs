@@ -1,6 +1,6 @@
 use std::{fmt::Display, path::PathBuf};
 
-use crate::grammar::identifier::Name;
+use crate::grammar::identifier::{GlobalIdentifier, LocalIdentifier, Name};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ModulePath(pub Vec<Name>);
@@ -28,6 +28,17 @@ impl ModulePath {
     let mut new_path = self.0.clone();
     new_path.push(name);
     ModulePath(new_path)
+  }
+}
+
+impl From<&str> for ModulePath {
+  fn from(value: &str) -> Self {
+    let parts = value.split("::").collect::<Vec<_>>();
+    let parts = parts
+      .iter()
+      .map(|part| part.to_string())
+      .collect::<Vec<_>>();
+    ModulePath(parts)
   }
 }
 
