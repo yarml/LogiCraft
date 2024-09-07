@@ -122,11 +122,16 @@ peg::parser! {
     // Statements
     rule var_decl() -> Node =
       [Token::Keyword(Keyword::Let)] _
+      m:([Token::Keyword(Keyword::Mut)] _)?
       name:name() _?
       typ:([Token::Colon] _? typ:typ() { typ })? _?
       [Token::AssignOp(AssignOp::Identity)] _?
       val:expression() {
-        Node::VarDecl{ typ: OptionalTypedName { name, typ }, val }
+        Node::VarDecl{
+          typ: OptionalTypedName { name, typ },
+          val,
+          mutable: m.is_some()
+        }
       }
 
     rule assignment() -> Node =
@@ -177,10 +182,10 @@ peg::parser! {
 
     rule glob_var_decl() -> Node = d:var_decl() stmt_sep() {?
       match d {
-        Node::VarDecl { typ, val } => if typ.typ.is_none() {
+        Node::VarDecl { typ, val, mutable } => if typ.typ.is_none() {
           Err("Global variable declarations must have an explicit type.")
         } else {
-          Ok(Node::VarDecl { typ, val })
+          Ok(Node::VarDecl { typ, val, mutable })
         },
         _ => Message::compiler_bug("Expected a variable declaration.")
               .report_and_exit(1),

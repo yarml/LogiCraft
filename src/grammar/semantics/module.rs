@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf};
 
 use crate::grammar::identifier::Name;
 
@@ -31,10 +31,10 @@ impl ModulePath {
   }
 }
 
-impl ToString for ModulePath {
-  fn to_string(&self) -> String {
-    if self.0.len() == 0 {
-      "main".to_string()
+impl Display for ModulePath {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let name = if self.0.len() == 0 {
+      "lib".to_string()
     } else {
       self
         .0
@@ -42,6 +42,7 @@ impl ToString for ModulePath {
         .map(|name| name.to_string())
         .collect::<Vec<_>>()
         .join("::")
-    }
+    };
+    write!(f, "{name}")
   }
 }

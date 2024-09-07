@@ -43,6 +43,7 @@ pub enum Node {
   VarDecl {
     typ: OptionalTypedName,
     val: Expression,
+    mutable: bool,
   },
   FnDecl {
     attributes: Vec<WithLineInfo<Name>>,

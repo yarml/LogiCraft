@@ -2,7 +2,7 @@ use crate::{
   grammar::{
     lexer::Lexer,
     parser::{ast::Node, Parser},
-    semantics::module::ModulePath,
+    semantics::{module::ModulePath, semify},
   },
   report::message::{Message, MessageType},
 };
@@ -19,19 +19,27 @@ pub struct Pipeline {
   root: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+pub struct Tree {
+  pub nodes: Vec<Node>,
+  pub path: PathBuf,
+  pub source: String,
+}
+
 impl Pipeline {
   pub fn new(root: &PathBuf) -> Self {
     Pipeline { root: root.clone() }
   }
 
-  fn load(&self) -> HashMap<ModulePath, Vec<Node>> {
+  fn load(&self) -> HashMap<ModulePath, Tree> {
     let loader = ModuleLoader;
 
     loader.load(&self.root, ModulePath::main())
   }
 
   pub fn run(&self) {
-    self.load();
+    let program = self.load();
+    semify(&program);
   }
 }
 
@@ -40,7 +48,7 @@ impl ModuleLoader {
     &self,
     root: &PathBuf,
     module: ModulePath,
-  ) -> HashMap<ModulePath, Vec<Node>> {
+  ) -> HashMap<ModulePath, Tree> {
     let mut schedule = HashSet::from([module]);
     let mut loaded = HashMap::new();
 
@@ -108,7 +116,14 @@ impl ModuleLoader {
           _ => {}
         }
       }
-      loaded.insert(next.clone(), nodes.clone());
+      loaded.insert(
+        next.clone(),
+        Tree {
+          nodes: nodes.clone(),
+          path,
+          source,
+        },
+      );
     }
     loaded
   }

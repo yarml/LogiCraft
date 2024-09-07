@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::report::location::WithLineInfo;
 
 use super::{
@@ -16,7 +18,7 @@ pub struct LocalIdentifier {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GlobalIdentifier {
   pub module: ModulePath,
-  pub name: Name,
+  pub name: WithLineInfo<Name>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,5 +36,33 @@ pub enum CallTarget {
 impl LocalIdentifier {
   pub fn is_singular(&self) -> bool {
     !self.root && self.parts.len() == 1
+  }
+}
+
+impl Display for LocalIdentifier {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let prefix = if self.root { "::" } else { "" };
+    let name = self
+      .parts
+      .iter()
+      .map(|winfo| winfo.value.clone())
+      .collect::<Vec<_>>()
+      .join("::");
+    write!(f, "{prefix}{name}")
+  }
+}
+
+impl Display for GlobalIdentifier {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}::{}", self.module, self.name.value)
+  }
+}
+
+impl Display for Type {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Type::Builtin(btyp) => write!(f, "{btyp}"),
+      Type::Declared(id) => write!(f, "{id}"),
+    }
   }
 }
