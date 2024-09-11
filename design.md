@@ -119,4 +119,5 @@ variables and their assosiated types.
 - Implement SymbolChecker, which utilizes both ProgDeclMap, and LocalDeclMap to verify function bodies consistency.
 - Verify all function bodies with their own SymbolResolver, report errors if they arrise.
 - If no error arises, then we're done semifying, the semifier outputs the same AST except with all identifiers remapped to their global names,
-an AST without ModDecl or UseDecl, functions of the AST have attached with them their SymbolResolver.
+an AST without ModDecl or UseDecl, functions of the AST have attached with them their SymbolResolver. The AST output by the semifier does not
+even separate modules, everything is in one tree

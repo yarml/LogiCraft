@@ -1,9 +1,11 @@
-use super::module::ModulePath;
+use super::{module::ModulePath, usemap::UseMap};
 use crate::{
   grammar::{
     builtins::BuiltinType,
-    identifier::{GlobalIdentifier, Name, Type},
-    parser::ast::{Node, TypedName},
+    identifier::{
+      GlobalIdentifier, Name, ScopedIdentifier, Type, UnscopedIdentifier,
+    },
+    parser::ast::{Node, TypedNameLI},
   },
   pipeline::Tree,
   report::{location::WithLineInfo, message::Message},
@@ -18,26 +20,32 @@ pub struct ProgDeclMap {
 }
 
 pub struct LocalDeclMap {
-  decls: HashMap<Name, TypedName>,
+  decls: HashMap<Name, TypedNameLI<GlobalIdentifier>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+pub struct ScopedNameResolver<'a, 'b> {
+  glob_decls: &'a ProgDeclMap,
+  usemap: &'b UseMap,
+  scope_decls: LocalDeclMap,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlobalDecl {
   pub id: GlobalIdentifier,
   pub typ: GlobalDeclType,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GlobalDeclType {
   Variable {
-    typ: WithLineInfo<Type>,
+    typ: WithLineInfo<Type<GlobalIdentifier>>,
     mutable: bool,
   },
   Function {
-    args: Vec<WithLineInfo<Type>>,
-    ret: WithLineInfo<Type>,
+    args: Vec<WithLineInfo<Type<GlobalIdentifier>>>,
+    ret: WithLineInfo<Type<GlobalIdentifier>>,
   },
-  Struct(Vec<TypedName>),
+  Struct(Vec<TypedNameLI<GlobalIdentifier>>),
 }
 
 impl ProgDeclMap {
@@ -55,8 +63,8 @@ impl ProgDeclMap {
     &mut self,
     module: &ModulePath,
     name: WithLineInfo<Name>,
-    args: Vec<WithLineInfo<Type>>,
-    ret: WithLineInfo<Type>,
+    args: Vec<WithLineInfo<Type<GlobalIdentifier>>>,
+    ret: WithLineInfo<Type<GlobalIdentifier>>,
   ) {
     let id = GlobalIdentifier {
       module: module.clone(),
@@ -69,7 +77,7 @@ impl ProgDeclMap {
     &mut self,
     module: &ModulePath,
     name: WithLineInfo<Name>,
-    typ: WithLineInfo<Type>,
+    typ: WithLineInfo<Type<GlobalIdentifier>>,
     mutable: bool,
   ) {
     let id = GlobalIdentifier {
@@ -83,7 +91,7 @@ impl ProgDeclMap {
     &mut self,
     module: &ModulePath,
     name: WithLineInfo<Name>,
-    fields: Vec<TypedName>,
+    fields: Vec<TypedNameLI<GlobalIdentifier>>,
   ) {
     let id = GlobalIdentifier {
       module: module.clone(),
@@ -142,7 +150,7 @@ impl ProgDeclMap {
   }
 }
 impl LocalDeclMap {
-  pub fn from_params(params: &[TypedName]) -> Self {
+  pub fn from_params(params: &[TypedNameLI<GlobalIdentifier>]) -> Self {
     let mut instance = Self {
       decls: HashMap::new(),
     };
@@ -151,12 +159,76 @@ impl LocalDeclMap {
     }
     instance
   }
-  pub fn add_var(&mut self, vardecl: TypedName) {
+  pub fn add_var(&mut self, vardecl: TypedNameLI<GlobalIdentifier>) {
     self.decls.insert(vardecl.name.value.clone(), vardecl);
   }
 
-  pub fn lookup(&self, name: &str) -> Option<&TypedName> {
+  pub fn lookup(&self, name: &str) -> Option<&TypedNameLI<GlobalIdentifier>> {
     self.decls.get(name)
+  }
+}
+impl<'a, 'b> ScopedNameResolver<'a, 'b> {
+  pub fn new(
+    declmap: &'a ProgDeclMap,
+    usemap: &'b UseMap,
+    params: &[TypedNameLI<GlobalIdentifier>],
+  ) -> Self {
+    Self {
+      glob_decls: declmap,
+      usemap,
+      scope_decls: LocalDeclMap::from_params(params),
+    }
+  }
+
+  pub fn add_var(&mut self, vardecl: TypedNameLI<GlobalIdentifier>) {
+    self.scope_decls.add_var(vardecl)
+  }
+
+  pub fn resolve(&self, id: &UnscopedIdentifier) -> ScopedIdentifier {
+    if id.parts.len() == 0 {
+      Message::tmp("Brother, I really don't wanna deal with this now")
+        .report_and_exit(1);
+    }
+    // If singular, this can then be local, otherwise it has to be global
+    if id.is_singular() {
+      let name = &id.parts[0].value;
+      if let Some(resolved) = self.scope_decls.lookup(name) {
+        return ScopedIdentifier::Local(resolved.clone());
+      }
+    }
+    if id.root {
+      let glob_id = id.as_root();
+      if let Some(glob_decl) = self.glob_decls.lookup(&glob_id) {
+        return ScopedIdentifier::Global(glob_decl.clone());
+      } else {
+        Message::tmp(&format!(
+          "Full identifier referencing an unknown target: {glob_id}",
+        ))
+        .report_and_exit(1)
+      }
+    }
+    let first_name = &id.parts[0].value;
+    if let Some(glob_id) = self.usemap.lookup(&first_name) {
+      let mut glob_id = glob_id.clone();
+      glob_id.push_names(
+        &id
+          .parts
+          .iter()
+          .map(|winfo| winfo.value.clone())
+          .collect::<Vec<_>>()[1..],
+      );
+      if let Some(glob_decl) = self.glob_decls.lookup(&glob_id) {
+        return ScopedIdentifier::Global(glob_decl.clone());
+      } else {
+        Message::tmp(&format!(
+          "Identifier referencing an unknown target: {glob_id}",
+        ))
+        .report_and_exit(1)
+      }
+    } else {
+      Message::tmp(&format!("Identifier referencing an unused: {first_name}",))
+        .report_and_exit(1)
+    }
   }
 }
 impl Display for ProgDeclMap {

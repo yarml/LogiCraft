@@ -1,10 +1,10 @@
-use super::ast::{Expression, Node, OptionalTypedName, TypedName};
+use super::ast::{Expression, Node, OptionalTypedNameLI, TypedNameLI};
 use super::helper::LineInfoFn;
 use crate::report::message::Message;
 use crate::{
   grammar::{
     builtins::Builtin,
-    identifier::{CallTarget, LocalIdentifier, Name, Type},
+    identifier::{CallTarget, Name, Type, UnscopedIdentifier},
     keywords::Keyword,
     lexer::token::Token,
     operators::{AssignOp, BinOp, Precedence, UnOp},
@@ -31,7 +31,7 @@ peg::parser! {
       start:position!()
       [Token::AssignOp(op)]
       end:position!() { line_info.tag(*op, start, end) }
-    rule call_target() -> WithLineInfo<CallTarget> =
+    rule call_target() -> WithLineInfo<CallTarget<UnscopedIdentifier>> =
       start:position!()
       target:(
         [Token::Identifier(id)] { CallTarget::Declared(id.clone()) } /
@@ -54,7 +54,7 @@ peg::parser! {
       start:position!()
       [Token::LiteralString(value)]
       end:position!() { line_info.tag(value.clone(), start, end) }
-    rule typ() -> WithLineInfo<Type> =
+    rule typ() -> WithLineInfo<Type<UnscopedIdentifier>> =
       start:position!()
       t:(
         [Token::Identifier(typ)] { Type::Declared(typ.clone()) } /
@@ -62,36 +62,36 @@ peg::parser! {
       )
       end:position!() { line_info.tag(t, start, end) }
     // Passthrough lexer
-    rule identifier() -> LocalIdentifier = [Token::Identifier(name)] { name.clone() }
+    rule identifier() -> UnscopedIdentifier = [Token::Identifier(name)] { name.clone() }
     // Separators
     rule _() = [Token::Separator]
     rule param_sep() = _? [Token::Comma] _?
     rule stmt_sep() = _? [Token::SemiColon] _?
 
     // Simpletons: simple composites of atoms
-    rule typed_name() -> TypedName =
+    rule typed_name() -> TypedNameLI<UnscopedIdentifier> =
       name:name() _?
       [Token::Colon] _?
       typ:typ() {
-        TypedName {
+        TypedNameLI {
           name: name,
           typ: typ,
         }
       }
 
-    rule return_spec() -> WithLineInfo<Type> =
+    rule return_spec() -> WithLineInfo<Type<UnscopedIdentifier>> =
       [Token::Arrow] _? typ:typ() { typ }
 
     // Sequences: things that repeat
-    rule params_decl() -> Vec<TypedName> =
+    rule params_decl() -> Vec<TypedNameLI<UnscopedIdentifier>> =
       d:(typed_name() ** param_sep()) param_sep()? { d }
-    rule fields_decl() -> Vec<TypedName> =
+    rule fields_decl() -> Vec<TypedNameLI<UnscopedIdentifier>> =
       d:(typed_name() ** param_sep()) param_sep()? { d }
-    rule expression_seq() -> Vec<Expression> =
+    rule expression_seq() -> Vec<Expression<UnscopedIdentifier>> =
       e:(expression() ** param_sep()) param_sep()? { e }
 
     // Expression: This beast has a section for itself
-    rule expression() -> Expression = precedence! {
+    rule expression() -> Expression<UnscopedIdentifier> = precedence! {
       x:(@) _? op:binop(Precedence::Lowest) _? y:@ {
         Expression::BinOp(x.into(), op, y.into())
       }
@@ -128,7 +128,7 @@ peg::parser! {
       [Token::AssignOp(AssignOp::Identity)] _?
       val:expression() {
         Node::VarDecl{
-          typ: OptionalTypedName { name, typ },
+          typ: OptionalTypedNameLI { name, typ },
           val,
           mutable: m.is_some()
         }

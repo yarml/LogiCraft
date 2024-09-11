@@ -4,13 +4,14 @@ use crate::report::{location::WithLineInfo, message::Message};
 
 use super::{
   builtins::{BuiltinFn, BuiltinType},
-  semantics::module::ModulePath,
+  parser::ast::TypedNameLI,
+  semantics::{decl::GlobalDecl, module::ModulePath},
 };
 
 pub type Name = String;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct LocalIdentifier {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnscopedIdentifier {
   pub root: bool,
   pub parts: Vec<WithLineInfo<Name>>,
 }
@@ -21,48 +22,65 @@ pub struct GlobalIdentifier {
   pub name: WithLineInfo<Name>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Type {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScopedIdentifier {
+  Local(TypedNameLI<GlobalIdentifier>),
+  Global(GlobalDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type<I: Clone> {
   Builtin(BuiltinType),
-  Declared(LocalIdentifier),
+  Declared(I),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum CallTarget {
+pub enum CallTarget<I: Clone> {
   Builtin(BuiltinFn),
-  Declared(LocalIdentifier),
+  Declared(I),
 }
 
-impl LocalIdentifier {
+impl UnscopedIdentifier {
   pub fn is_singular(&self) -> bool {
     !self.root && self.parts.len() == 1
   }
 
   pub fn resolve(&self, reference: &ModulePath) -> GlobalIdentifier {
     if self.root {
-      let module = ModulePath(
-        self.parts[..self.parts.len() - 1]
-          .iter()
-          .map(|winfo| winfo.value.clone())
-          .collect::<Vec<_>>(),
-      );
-      let name = self.parts.last().unwrap().clone();
-      GlobalIdentifier { module, name }
+      self.as_root()
     } else {
-      let mut module = reference.clone();
-      module.0.extend_from_slice(
-        &self.parts[..self.parts.len() - 1]
-          .iter()
-          .map(|winfo| winfo.value.clone())
-          .collect::<Vec<_>>(),
-      );
-      let name = self.parts.last().unwrap().clone();
-      GlobalIdentifier { module, name }
+      self.from_ref(reference)
     }
+  }
+
+  pub fn as_root(&self) -> GlobalIdentifier {
+    let module = ModulePath(
+      self.parts[..self.parts.len() - 1]
+        .iter()
+        .map(|winfo| winfo.value.clone())
+        .collect::<Vec<_>>(),
+    );
+    let name = self.parts.last().unwrap().clone();
+    GlobalIdentifier { module, name }
+  }
+  pub fn from_ref(&self, reference: &ModulePath) -> GlobalIdentifier {
+    let mut module = reference.clone();
+    module.0.extend_from_slice(
+      &self.parts[..self.parts.len() - 1]
+        .iter()
+        .map(|winfo| winfo.value.clone())
+        .collect::<Vec<_>>(),
+    );
+    let name = self.parts.last().unwrap().clone();
+    GlobalIdentifier { module, name }
+  }
+
+  pub fn name(&self) -> Option<WithLineInfo<Name>> {
+    self.parts.last().cloned()
   }
 }
 
-impl From<&str> for LocalIdentifier {
+impl From<&str> for UnscopedIdentifier {
   fn from(value: &str) -> Self {
     let parts = value.split("::").collect::<Vec<_>>();
     let root = parts[0] == "";
@@ -71,7 +89,15 @@ impl From<&str> for LocalIdentifier {
       .iter()
       .map(|part| WithLineInfo::debug(part.to_string()))
       .collect();
-    LocalIdentifier { root, parts }
+    UnscopedIdentifier { root, parts }
+  }
+}
+
+impl GlobalIdentifier {
+  pub fn push_names(&mut self, names: &[Name]) {
+    self.module.join(self.name.value.clone());
+    self.module.0.extend_from_slice(&names[..names.len() - 1]);
+    self.name = WithLineInfo::debug(names.last().unwrap().clone());
   }
 }
 
@@ -105,7 +131,7 @@ impl From<&str> for GlobalIdentifier {
   }
 }
 
-impl Display for LocalIdentifier {
+impl Display for UnscopedIdentifier {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let prefix = if self.root { "::" } else { "" };
     let name = self
@@ -120,11 +146,11 @@ impl Display for LocalIdentifier {
 
 impl Display for GlobalIdentifier {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}::{}", self.module, self.name.value)
+    write!(f, "::{}::{}", self.module, self.name.value)
   }
 }
 
-impl Display for Type {
+impl<I: Clone + Display> Display for Type<I> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Type::Builtin(btyp) => write!(f, "{btyp}"),

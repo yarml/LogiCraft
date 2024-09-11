@@ -1,6 +1,6 @@
 use crate::grammar::{
   builtins::Builtin,
-  identifier::LocalIdentifier,
+  identifier::UnscopedIdentifier,
   keywords::Keyword,
   operators::{AssignOp, Op},
 };
@@ -15,7 +15,7 @@ pub enum Token {
   LiteralCharacter(char),
   LiteralString(String),
 
-  Identifier(LocalIdentifier),
+  Identifier(UnscopedIdentifier),
 
   Hash,
   ParenOpen,

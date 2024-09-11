@@ -48,11 +48,9 @@ impl Pipeline {
         (module_path, (tree, usemap))
       })
       .collect::<HashMap<_, _>>();
+    let program = Semifier::resolve(&declmap, &program);
 
-    println!("Global Declarations:\n{declmap}");
-    for (module, (tree, usemap)) in &program {
-      println!("Usemap for {module}:\n{usemap}")
-    }
+    println!("{:?}", program);
   }
 }
 

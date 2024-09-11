@@ -1,6 +1,6 @@
 use std::{fmt::Display, path::PathBuf};
 
-use crate::grammar::identifier::{GlobalIdentifier, LocalIdentifier, Name};
+use crate::grammar::identifier::Name;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ModulePath(pub Vec<Name>);

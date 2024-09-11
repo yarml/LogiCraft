@@ -50,6 +50,11 @@ impl Message {
       .with_note("This is a compiler bug. Please report it.")
   }
 
+  // Used for temporary messages that don't display as much information as we would like
+  pub fn tmp(message: &str) -> Self {
+    Self::new(message, MessageType::Bug).with_note("This error will display more information in future versions of the compiler")
+  }
+
   pub fn input_error(err: io::Error, path: &PathBuf) -> Self {
     Self::new(&format!("{}", err.to_string()), MessageType::Error)
       .with_note(&format!("While reading `{}`", path.to_string_lossy()))

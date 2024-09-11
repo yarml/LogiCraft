@@ -7,6 +7,12 @@ pub struct UseMap {
   pub usemap: HashMap<Name, GlobalIdentifier>,
 }
 
+impl UseMap {
+  pub fn lookup(&self, name: &str) -> Option<&GlobalIdentifier> {
+    self.usemap.get(name)
+  }
+}
+
 impl From<HashMap<Name, GlobalIdentifier>> for UseMap {
   fn from(usemap: HashMap<Name, GlobalIdentifier>) -> Self {
     Self { usemap }
